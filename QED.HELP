@@ -1,0 +1,72 @@
+                         Q E D
+                         =====
+
+                     QL Text Editor
+             Copyright  1988 Jan Bredenbeek
+                   Hilversum, Holland
+
+
+Cursor movement            Delete
+---------------            ------
+      ¼ ½ Character        CTRL ¼ ½       Character
+SHIFT ¼ ½ Word             CTRL SHIFT ¼ ½ Word
+ALT   ¼ ½ Start/End line   CTRL ALT ¼     Line
+      ¾ ¿ Line             CTRL ALT ½  to End of line
+SHIFT ¾ ¿ Page
+ALT   ¾ ¿ Scroll
+CTRL  ¾ ¿ Search backward/forward
+
+Single-key commands
+-------------------
+TAB      Tabulate
+ESC      Undo changes on current line
+F1       Help
+F2       Re-execute last command line
+F3       Enter command line
+SHIFT F3 Edit last command line
+F4       Change Insert/Overwrite mode
+F5       Redraw screen
+
+Extended commands
+-----------------
+A/s/    Insert line <s> after current line
+B       Move to bottom of file
+BE      Mark block end
+BF/s/   Backwards find string <s>
+BS      Mark block start
+CE      Cursor to end of line
+CL      Cursor one position left
+CR      Cursor one position right
+CS      Cursor to start of line
+D       Delete current line
+DB      Delete block
+DC      Delete character under cursor
+DW      Delete word right from cursor
+E/s/t/  Exchange <s> into <t>
+EQ/s/t/ Exchange but query first
+F/s/    Find string <s>
+I/s/    Insert line <s> before current
+IB      Insert copy of block
+IF/s/   Insert file <s>
+J       Join current line with next
+M n     Move to line <n>
+N       Move to next line
+NW      Move to next word
+P       Move to previous line
+PW      Move to previous word
+Q       Quit editor without saving text
+R/s/    Re-enter editor with file <s>
+RP      Repeat until error
+RT      Return to last line (max. 3x)
+S       Split line at cursor
+SA/s/   Save text to file <s> (or default file)
+SB      Show block
+SH      Show current editor status
+SL n    Set left margin at <n>
+SR n    Set right margin at <n>
+ST n    Set tab distance to <n>
+T       Move to top of file
+TY/s/   Type string <s>
+U       Undo changes on current line
+WB/s/   Write block to file <s>
+X       Exit, writing text back

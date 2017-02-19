@@ -9,7 +9,6 @@
 *
 * Main program part
 *
-
          INCLUDE  FLP1_MACRO_LIB             Macro definitions
          INCLUDE  FLP1_QDOS_IN_MAC           QDOS definitions
          INCLUDE  FLP2_QED_DEF               QED Definitions

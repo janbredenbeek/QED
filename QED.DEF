@@ -68,3 +68,4 @@ LINEBUF  DS.B     256      Buffer for editing current line
 FINDSTR  DS.B     2+254    Current "find" string
 
          DATA     1536     Size of data area
+         

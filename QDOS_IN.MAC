@@ -1,0 +1,254 @@
+* QDOS INCLUDE FILE
+
+QDOS     MACRO    A
+         NOEXPAND
+[.LAB]   MOVEQ    #[A]&$FF,D0
+         TRAP     #[A]/$100
+         ENDM
+
+STRING$  MACRO    A
+         NOEXPAND
+[.LAB]   DC.W     .E.[.L]-*-2
+         DC.B     [A]
+.E.[.L]  EQU      *
+         ENDM
+
+LOAD$    MACRO    A,B
+         NOEXPAND
+         IFSTR    {[B]} <> {} GOTO LOAD2
+B        SETSTR   A1
+LOAD2    MACLAB
+[.LAB]   LEA      .S.[.L],[B]
+         SECTION  MSG
+.S.[.L]  STRING$  {[A]}
+         SECTION  CODE
+         ENDM
+
+PRINT    MACRO    A
+         NOEXPAND
+[.LAB]   LOAD$    {[A]}
+         MOVE.W   UT_MTEXT,A2
+         JSR      (A2)
+         ENDM
+
+WRITESUB MACRO    A,B,C
+         NOEXPAND
+         IFSTR    {[C]} = {} GOTO WRITE2
+         IFSTR    [C] = A1 GOTO WRITE2
+         ERROR    [A] can only write at (A1)!
+         GOTO     WRITE4
+WRITE2   MACLAB
+         IFSTR    {[B]} <> {} GOTO WRITE3
+[.LAB]   MOVE.L   A0,-(A7)
+         JSR      [A]
+         GOTO     WRITE4
+WRITE3   MACLAB
+[.LAB]   PEA      .S.[.L]
+         JSR      [A]
+         SECTION  MSG
+.S.[.L]  STRING$  {[B]}
+         SECTION  CODE
+WRITE4   MACLAB
+         ENDM
+
+WRITE$   MACRO    A,B
+[.LAB]   WRITESUB WRITE$ {[A]} [B]
+         ENDM
+
+WRITEL$  MACRO    A,B
+[.LAB]   WRITESUB WRITEL$ {[A]} [B]
+         ENDM
+
+         NOLIST
+
+MT.INF   EQU      $100
+MT.CJOB  EQU      $101
+MT.JINF  EQU      $102
+MT.RJOB  EQU      $104
+MT.FRJOB EQU      $105
+MT.FREE  EQU      $106
+MT.TRAPV EQU      $107
+MT.SUSJB EQU      $108
+MT.RELJB EQU      $109
+MT.ACTIV EQU      $10A
+MT.PRIOR EQU      $10B
+MT.ALLOC EQU      $10C
+MT.LNKFR EQU      $10D
+MT.ALRES EQU      $10E
+MT.RERES EQU      $10F
+MT.DMODE EQU      $110
+MT.IPCOM EQU      $111
+MT.BAUD  EQU      $112
+MT.RCLCK EQU      $113
+MT.SCLCK EQU      $114
+MT.ACLCK EQU      $115
+MT.ALBAS EQU      $116
+MT.REBAS EQU      $117
+MT.ALCHP EQU      $118
+MT.RECHP EQU      $119
+MT.LXINT EQU      $11A
+MT.RXINT EQU      $11B
+MT.LPOLL EQU      $11C
+MT.RPOLL EQU      $11D
+MT.LSCHD EQU      $11E
+MT.RSCHD EQU      $11F
+MT.LIOD  EQU      $120
+MT.RIOD  EQU      $121
+MT.LDD   EQU      $122
+MT.RDD   EQU      $123
+MT.TRA   EQU      $124
+
+IO.OPEN  EQU      $201
+IO.CLOSE EQU      $202
+IO.FORMT EQU      $203
+IO.DELET EQU      $204
+IO.EXCL  EQU      0
+IO.SHARE EQU      1
+IO.NEW   EQU      2
+IO.OVER  EQU      3
+IO.DIR   EQU      4
+
+IO.PEND  EQU      $300
+IO.FBYTE EQU      $301
+IO.FLINE EQU      $302
+IO.FSTRG EQU      $303
+IO.EDLIN EQU      $304
+IO.SBYTE EQU      $305
+IO.SSTRG EQU      $307
+SD.EXTOP EQU      $309
+SD.PXENQ EQU      $30A
+SD.CHENQ EQU      $30B
+SD.BORDR EQU      $30C
+SD.WDEF  EQU      $30D
+SD.CURE  EQU      $30E
+SD.CURS  EQU      $30F
+SD.POS   EQU      $310
+SD.TAB   EQU      $311
+SD.NL    EQU      $312
+SD.PCOL  EQU      $313
+SD.NCOL  EQU      $314
+SD.PROW  EQU      $315
+SD.NROW  EQU      $316
+SD.PIXP  EQU      $317
+SD.SCROL EQU      $318
+SD.SCRTP EQU      $319
+SD.SCRBT EQU      $31A
+SD.PAN   EQU      $31B
+SD.PANLN EQU      $31E
+SD.PANRT EQU      $31F
+SD.CLEAR EQU      $320
+SD.CLRTP EQU      $321
+SD.CLRBT EQU      $322
+SD.CLRLN EQU      $323
+SD.CLRRT EQU      $324
+SD.FOUNT EQU      $325
+SD.RECOL EQU      $326
+SD.SETPA EQU      $327
+SD.SETST EQU      $328
+SD.SETIN EQU      $329
+SD.SETFL EQU      $32A
+SD.SETUL EQU      $32B
+SD.SETMD EQU      $32C
+SD.SETSZ EQU      $32D
+SD.FILL  EQU      $32E
+SD.DONL  EQU      $32F
+SD.POINT EQU      $330
+SD.LINE  EQU      $331
+SD.ARC   EQU      $332
+SD.ELIPS EQU      $333
+SD.SCALE EQU      $334
+SD.FLOOD EQU      $335
+SD.GCUR  EQU      $336
+FS.CHECK EQU      $340
+FS.FLUSH EQU      $341
+FS.POSAB EQU      $342
+FS.POSRE EQU      $343
+FS.MDINF EQU      $345
+FS.HEADS EQU      $346
+FS.HEADR EQU      $347
+FS.LOAD  EQU      $348
+FS.SAVE  EQU      $349
+FS.RENAM EQU      $34A
+FS.TRUNC EQU      $34B
+IOF.DATE EQU      $34C
+IOF.MKDR EQU      $34D
+IOF.VERS EQU      $34E
+IOF.XINF EQU      $34F
+
+MM_ALCHP EQU      $C0
+MM_RECHP EQU      $C2
+UT_WINDW EQU      $C4
+UT_CON   EQU      $C6
+UT_SCR   EQU      $C8
+UT_ERR0  EQU      $CA
+UT_ERR   EQU      $CC
+UT_MINT  EQU      $CE
+UT_MTEXT EQU      $D0
+UT_LINK  EQU      $D2
+UT_UNLNK EQU      $D4
+MM_ALLOC EQU      $D8
+MM_LNKFR EQU      $DA
+IO_QSET  EQU      $DC
+IO_QTEST EQU      $DE
+IO_QIN   EQU      $E0
+IO_QOUT  EQU      $E2
+IO_QEOF  EQU      $E4
+UT_CSTR  EQU      $E6
+IO_SERQ  EQU      $E8
+IO_SERIO EQU      $EA
+CN_DATE  EQU      $EC
+CN_DAY   EQU      $EE
+CN_FTOD  EQU      $F0
+CN_ITOD  EQU      $F2
+CN_ITOBB EQU      $F4
+CN_ITOBW EQU      $F6
+CN_ITOBL EQU      $F8
+CN_ITOHB EQU      $FA
+CN_ITOHW EQU      $FC
+CN_ITOHL EQU      $FE
+CN_DTOF  EQU      $100
+CN_DTOI  EQU      $102
+CN_BTOIB EQU      $104
+CN_BTOIW EQU      $106
+CN_BTOIL EQU      $108
+CN_HTOIB EQU      $10A
+CN_HTOIW EQU      $10C
+CN_HTOIL EQU      $10E
+BP_INIT  EQU      $110
+CA_GTINT EQU      $112
+CA_GTFP  EQU      $114
+CA_GTSTR EQU      $116
+CA_GTLIN EQU      $118
+BV_CHRIX EQU      $11A
+RI_EXEC  EQU      $11C
+RI_EXECB EQU      $11E
+BP_LET   EQU      $120
+IO_NAME  EQU      $122
+MD_READ  EQU      $124
+MD_WRITE EQU      $126
+MD_VERIN EQU      $128
+MD_SECTR EQU      $12A
+
+ERR.NC   EQU      -1
+ERR.NJ   EQU      -2
+ERR.OM   EQU      -3
+ERR.OR   EQU      -4
+ERR.BO   EQU      -5
+ERR.NO   EQU      -6
+ERR.NF   EQU      -7
+ERR.EX   EQU      -8
+ERR.IU   EQU      -9
+ERR.EF   EQU      -10
+ERR.DF   EQU      -11
+ERR.BN   EQU      -12
+ERR.TE   EQU      -13
+ERR.FF   EQU      -14
+ERR.BP   EQU      -15
+ERR.FE   EQU      -16
+ERR.XP   EQU      -17
+ERR.OV   EQU      -18
+ERR.NI   EQU      -19
+ERR.RO   EQU      -20
+ERR.BL   EQU      -21
+
+         LIST

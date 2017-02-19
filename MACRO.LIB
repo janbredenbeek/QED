@@ -1,0 +1,260 @@
+         NOLIST
+
+.lev     SETNUM  0
+.false   SETSTR  FALSE
+.no      SETSTR  NO
+.cc1     SETSTR  CC.VC.EQ.PL.HI.HS.GT.GE.CS.VS.NE.MI.LS.LO.LE.LT.
+.cc2     SETSTR  CS.VS.NE.MI.LS.LO.LE.LT.CC.VC.EQ.PL.HI.HS.GT.GE.
+.mirr1   SETSTR  EQ.NE.LT.LE.GE.GT.LO.CS.LS.HS.CC.HI.
+.mirr2   SETSTR  EQ.NE.GT.GE.LE.LT.HI.HI.HS.LS.LS.LO.
+.conj    SETSTR  .THEN.DO.AND.OR.
+.complex SETSTR  .AND.OR.
+.dot     SETSTR  {.}
+.DEBUG   SETSTR  {[.left(.no,[.instr(.false,.DEF(.DEBUG))]*2)]}
+.CODE    SETSTR  {[.left(.no,[.instr(.false,.def(.CODE))]*2)]}
+
+IF         MACRO   A B C D E F G H 
+           [.debug]EXPAND
+.lev       SETNUM  [.lev]+1
+.EL[.lev]  SETSTR  .EL.[.L]
+.EN[.lev]  SETSTR  .EN.[.L]
+.MC[.lev]  SETSTR  IF
+         IFSUB   {[A]} {[B]} {[C]} {[D]} \
+                 {[E]} {[F]} {[G]} {[H]}
+         ENDM         
+ELSEIF   MACRO   A B C D E F G H
+         [.debug]EXPAND
+         LOCAL   ext
+ext      SETSTR  {[.ext]}
+         IFSTR   {[ext]} <> {}  GOTO OK
+ext      SETSTR  {S}
+OK       MACLAB
+         [.code]EXPAND
+         BRA.[ext]  [.EN[.lev]]
+[.EL[.lev]]
+         [.debug]EXPAND
+.EL[.lev]  SETSTR  .EL.[.L]
+.MC[.lev]  SETSTR  ELSEIF
+         IFSUB   {[A]} {[B]} {[C]} {[D]} \
+                 {[E]} {[F]} {[G]} {[H]}
+         ENDM
+ 
+ELSE     MACRO
+         [.debug]EXPAND
+         LOCAL ext
+ext      SETSTR  {[.ext]}
+         IFSTR   {[ext]} <> {} GOTO OK
+ext      SETSTR  {S}
+OK       MACLAB
+         [.code]EXPAND
+         BRA.[ext]  [.EN[.lev]]
+[.EL[.lev]]
+         [.debug]EXPAND
+.EL[.lev]  SETSTR  {}
+.MC[.lev]  SETSTR  ELSE
+         ENDM
+ 
+ENDIF    MACRO
+         [.code]EXPAND
+[.EL[.lev]]
+[.EN[.lev]]
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]-1
+         ENDM
+ 
+WHILE    MACRO a b c d e f g h
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]+1
+.EL[.lev]  SETSTR  .EL.[.l]
+.EN[.lev]  SETSTR  .EN.[.l]
+.MC[.lev]  SETSTR  WHILE
+         [.code]EXPAND
+[.EN[.lev]]
+         [.debug]EXPAND
+         IFSUB {[A]} {[B]} {[C]} {[D]} \
+               {[E]} {[F]} {[G]} {[H]}
+         ENDM
+ 
+ENDWHILE MACRO
+         [.code]EXPAND
+         BRA [.EN[.lev]]         
+[.EL[.lev]]
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]-1
+         ENDM
+ 
+REPEAT   MACRO
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]+1
+.EL[.lev]  SETSTR  .EL.[.l]
+.EN[.lev]  SETSTR  .EN.[.l]
+.MC[.lev]  SETSTR  REPEAT
+         [.code]EXPAND
+[.EL[.lev]]
+         ENDM
+ 
+UNTIL    MACRO P1 P2 P3 P4 P5 P6 P7 P8
+         [.debug]EXPAND
+         LOCAL N
+N        SETNUM   [.NPARMS]+1
+P[N]     SETSTR   THEN
+         IFSUB {[P1]} {[P2]} {[P3]} {[P4]} \
+               {[P5]} {[P6]} {[P7]} {[P8]}
+         [.code]EXPAND
+[.EN[.lev]]
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]-1
+         ENDM
+ 
+FOREVER  MACRO
+         [.code]EXPAND
+         BRA [.EL[.lev]]
+[.EN[.lev]]
+         [.debug]EXPAND
+.lev     SETNUM  [.lev]-1
+         ENDM
+ 
+IFSUB    MACRO A,B,C,D,E,F,G H
+         LOCAL cc,then,bext,cext,dotpos,op1,op2
+B        SETSTR  {[.ucase(B)]}
+D        SETSTR  {[.ucase(D)]}
+F        SETSTR  {[.ucase(F)]}
+H        SETSTR  {[.ucase(H)]}
+AGAIN    MACLAB
+then     SETSTR  {.[B].}
+bext     SETSTR  {S}
+dotpos   SETNUM  [.instr(B,.dot)]
+         IFNUM [dotpos] = 0 GOTO NODOT1
+then     SETSTR  {.[.left(B,[dotpos]-1)].}
+bext     SETSTR  [.right(B,1)]
+NODOT1   MACLAB
+         IFNUM [.instr(.conj,then)] = 0 GOTO NOTCC
+cc       SETSTR  {[.ucase(A)]}
+H        SETSTR  {[F]} 
+G        SETSTR  {[E]}
+F        SETSTR  {[D]}
+E        SETSTR  {[C]}
+         GOTO    PROCESS
+NOTCC    MACLAB
+then     SETSTR  {.[D].}
+bext     SETSTR  {S}
+dotpos   SETNUM  [.instr(D,.dot)]
+         IFNUM   [dotpos] = 0 GOTO NODOT2
+then     SETSTR  {.[.left(D,[dotpos]-1)].}
+bext     SETSTR  [.right(D,1)]
+NODOT2   MACLAB
+cc       SETSTR  {[B]}
+         IFSTR   {[cc]} = SET GOTO  SET
+         IFSTR   {[cc]} = CLEAR GOTO  CLEAR
+cext     SETSTR  {}
+dotpos   SETNUM  [.instr(cc,.dot)]
+         IFNUM   [dotpos] = 0 GOTO NODOT3
+cext     SETSTR  [.right(cc,1)]
+cc       SETSTR  {[.left(cc,[dotpos]-1)]}
+NODOT3   MACLAB
+op1      SETSTR [.OTYPE([A])]
+op2      SETSTR [.OTYPE([C])]
+         IFSTR   [op2] = AREG GOTO  NOTSWAP
+         IFSTR   [op2] = DREG GOTO  NOTSWAP
+         IFSTR   [op1] = IMMED GOTO  NOTSWAP
+B        SETSTR  {[A]}
+A        SETSTR  {[C]}
+C        SETSTR  {[B]}
+         GOTO GENCOMP
+NOTSWAP  MACLAB
+cc       SETSTR  [.right(.left(.mirr2,[.instr(.mirr1,cc)]+1),2)]
+GENCOMP  MACLAB
+         [.code]EXPAND
+         CMP.[cext] [A],[C]
+         [.debug]EXPAND
+         GOTO PROCESS
+SET      MACLAB
+cc       SETSTR  NE
+         GOTO BTEST
+CLEAR    MACLAB
+cc       SETSTR  EQ
+BTEST    MACLAB
+         [.code]EXPAND
+         BTST  [A],[C]
+         [.debug]EXPAND
+PROCESS  MACLAB
+A        SETSTR  {[E]}
+B        SETSTR  {[F]}
+C        SETSTR  {[G]}
+D        SETSTR  {[H]}
+         IFSTR [then] <> .AND. GOTO NOTAND
+bext     SETSTR  {S}
+then     SETSTR  {.[B].}
+dotpos   SETNUM  [.instr(B,.dot)]
+         IFNUM   [dotpos] = 0 GOTO AND1
+then     SETSTR  {.[.left(B,[dotpos]-1)].}
+bext     SETSTR  {[.right(B,1)]}
+AND1     MACLAB
+         IFNUM   [.instr(.conj,then)] <> 0 GOTO GENAND
+then     SETSTR  {.[D].}
+bext     SETSTR  {S}
+dotpos   SETNUM  [.instr(D,.dot)]
+         IFNUM   [dotpos] = 0 GOTO GENAND
+then     SETSTR  {[.left(D,[dotpos]-1)]}
+bext     SETSTR  {[.right(D,1)]}
+GENAND   MACLAB
+         IFSTR [.MC[.lev]] <> REPEAT GOTO AND4
+bext     SETSTR  {}
+AND4     MACLAB
+cc       SETSTR  [.right(.left(.cc2,[.instr(.cc1,cc)]+1),2)]
+         [.code]EXPAND
+         B[cc].[bext] [.EL[.lev]]
+         [.debug]EXPAND
+         GOTO AGAIN
+NOTAND   MACLAB
+         IFSTR [then] <> .OR. GOTO NOTOR
+then     SETSTR  {.[B].}
+dotpos   SETNUM  [.instr(B,.dot)]
+         IFNUM   [dotpos] = 0 GOTO OR1
+then     SETSTR  {.[.left(B,[dotpos]-1)].}
+OR1      MACLAB
+         IFNUM [.instr(.conj,then)] <> 0  GOTO OR2
+then     SETSTR  {.[D].}
+dotpos   SETNUM  [.instr(D,.dot)]
+         IFNUM   [dotpos] = 0 GOTO OR2
+then     SETSTR  {.[.left(D,[dotpos]-1)].}
+OR2      MACLAB
+.OK[.lev]  SETSTR  .OK.[.l]
+         [.code]EXPAND
+         B[cc].S [.OK[.lev]]
+         [.debug]EXPAND
+         GOTO  AGAIN
+NOTOR    MACLAB
+cc       SETSTR  [.right(.left(.cc2,[.instr(.cc1,cc)]+1),2)]
+         IFSTR   [.MC[.lev]] <> REPEAT  GOTO EXTOK
+bext     SETSTR  {}
+EXTOK    MACLAB
+         [.code]EXPAND
+         B[CC].[bext]   [.EL[.lev]]
+         [.debug]EXPAND
+         IFSTR [.def(.OK[.lev])] = FALSE GOTO EXIT
+         IFSTR {[.OK[.lev]]} = {} GOTO EXIT
+         [.code]EXPAND
+[.OK[.lev]]
+         [.debug]EXPAND
+.OK[.lev]  SETSTR  {}
+EXIT     MACLAB
+         ENDM
+ 
+EXITIF   MACRO A
+         [.debug]EXPAND
+         LOCAL ext,exlab
+ext      SETSTR   {[.ext]}
+         IFSTR {[ext]} <> {} GOTO EXIT2
+ext      SETSTR   {S}
+EXIT2    MACLAB
+exlab    SETSTR   {[.EN[.lev]]}
+         IFSTR [.MC[.lev]] <> WHILE GOTO NOTWHILE
+exlab    SETSTR   {[.EL[.lev]]}
+NOTWHILE MACLAB
+         [.code]EXPAND
+         B[A].[ext]  [exlab]
+         [.debug]EXPAND
+         ENDM
+ 
+         LIST

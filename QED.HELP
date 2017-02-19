@@ -8,13 +8,13 @@
 
 Cursor movement            Delete
 ---------------            ------
-      ¼ ½ Character        CTRL ¼ ½       Character
-SHIFT ¼ ½ Word             CTRL SHIFT ¼ ½ Word
-ALT   ¼ ½ Start/End line   CTRL ALT ¼     Line
-      ¾ ¿ Line             CTRL ALT ½  to End of line
-SHIFT ¾ ¿ Page
-ALT   ¾ ¿ Scroll
-CTRL  ¾ ¿ Search backward/forward
+      Â¼ Â½ Character        CTRL Â¼ Â½       Character
+SHIFT Â¼ Â½ Word             CTRL SHIFT Â¼ Â½ Word
+ALT   Â¼ Â½ Start/End line   CTRL ALT Â¼     Line
+      Â¾ Â¿ Line             CTRL ALT Â½  to End of line
+SHIFT Â¾ Â¿ Page
+ALT   Â¾ Â¿ Scroll
+CTRL  Â¾ Â¿ Search backward/forward
 
 Single-key commands
 -------------------

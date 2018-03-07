@@ -1,6 +1,19 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
+*.asm text eol=lf
+*.link text eol=lf
+*.in text eol=lf
+*.inc text eol=lf
+*.bas text eol=lf
+*.lib text eol=lf
+*.c text eol=lf
+*.bc2 text eol=crlf
+*.bc3 text eol=crlf
+*.bin binary
+*.rom binary
+*.rel binary
+
 # Custom for Visual Studio
 *.cs     diff=csharp
 

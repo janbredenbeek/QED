@@ -1,0 +1,137 @@
+                           QED Version 2.00 beta
+                           =====================
+
+
+    This textfile describes the changes introduced in QED v2.00, compared
+    to v1.01.
+    Note that QED v2.00 is still in "beta" stadium, and thus it is
+    quite possible that some errors that have not been spotted by the
+    author will show up. If you find anything that looks like a bug,
+    please report it to me via E-mail:
+
+    Jan Bredenbeek, jan (at) bredenbeek.net
+    
+
+    List of New Features
+    --------------------
+
+    - Multi-file editing is now possible. This can be done by
+      specifying multiple filenames on the commandline, e.g.:
+
+      EX QED;'fred_c jim_asm peter_pas'
+
+      which will load the files fred_c, jim_asm and peter_pas into
+      QED. One file will be displayed at a time (in this case the
+      first file specified on the commandline). Pressing F5 will
+      switch the display to the next file in a circular fashion, like
+      the CTRL-C key does when switching jobs. Note that if only one
+      file is being edited, the F5 key behaves as in v1.01 (i.e. it
+      updates the display).
+      There is no limit on the number of files QED can handle, other
+      than the restrictions imposed by the amount of available
+      memory.
+
+      The multi-file editing capability alters the functionality of
+      some commands in QED:
+      - The "Q" command, used to quit QED, scans the list of files
+        being edited to see if changes have been made to the text.
+        If so, you will be prompted if you want to lose the changes.
+        Pressing Y will lose the changes in the current file,
+        pressing N will abort the command leaving the displayed file
+        active.
+
+      - The "R" command will no longer discard the current file.
+        Instead, the specified file will be loaded and displayed
+        while the current file will remain active. Thus, each time
+        you do a "R" command a new file will be added to the list of
+        files being edited.
+        The string parameter of the "R" command may be the name of
+        the new file and possible commandline options. An empty
+        parameter is allowed, in which case QED will prompt you to
+        enter it (along with the workspace required).
+
+      - The "X" command now saves ALL files being edited which have
+        been modified within QED. Files not modified will NOT be
+        saved. After all files have been saved successfully, an exit
+        is made from QED.
+
+      - Individual files may be quit (no save) using the QF command
+        and saved using the XF command. When completed, these
+        commands will display the next file being edited or quit QED
+        if there are no active files left.
+
+
+    - QED now supports AutoIndent. This is an useful feature for
+      programmers in languages such as C, Assembly and Pascal which
+      use indented text for clarity.
+      When AutoIndent mode is on and you reach a new line due to
+      pressing ENTER or wordwrapping, QED will note the column
+      position of the first non-blank character on the previous line 
+      (or the line before the previous if that line is blank, and so 
+      on). The cursor on the new line will then be put on that column
+      position, so that you won't have to TAB to it for each line.
+      If you need to TAB back to the previous tab stop, e.g. when
+      reaching the end of a { }-construction in C, you can now use
+      SHIFT-TAB to move the cursor left to the previous tab stop.
+      AutoIndent can be toggled on and off by pressing the SHIFT-F1
+      (or F6) key or issuing the TA command.
+
+    - QED now can handle files containing TAB characters. This is
+      configurable through two settings: the "Expand TABs" option and
+      the "Compress TABs" option.
+      The "Expand TABs" option controls the handling of TAB
+      characters in the display. When OFF, TABs will not be expanded
+      and thus will look like funny characters in the file (as they
+      did in v1.01). When ON, TABs will be displayed as one or more
+      space characters as you would expect when using the TAB key.
+      This will involve a small speed penalty however, so if you
+      never use files containing TABs you may disable TAB-expansion
+      to get full speed.
+      The "Compress TABs" option controls the physical storage of 
+      TABs in the file. When OFF, no TABs will be output (as in
+      v1.01). When ON, QED will replace occurrences of one or more
+      space characters in a line by TAB characters where appropriate.
+      In programming source files, this will often reduce the file
+      size considerably.
+      It should be noted that QED will only compress TABs in _edited_
+      lines, not the lines of the file which were not altered during
+      an edit session! This can be overcome by loading a file in
+      "Cooked" mode - see further on in this document.
+      The "Expand TABs" option can be toggled using the TE command; 
+      the "Compress TABs" option can be toggled using the TC command.
+
+    - The Toolkit II default data directory is now supported when
+      processing filenames.
+
+    - When saving a file using the SA or X command, any existing file
+      is now renamed to <filename>_OLD when the new version is
+      written.
+
+    - When Writing a Block to an existing file, a prompt is displayed
+      to either overwrite or append to this file.
+
+    - Both the command input (F3 or SHIFT-F3) and the filename and
+      workspace prompts can now be aborted by pressing the arrow-up
+      or -down key (On systems equipped with the Minerva ROM, the ESC
+      key can also be used).
+
+    - A space may now be used as separator character when entering
+      commands requiring a string parameter, if the string itself
+      does not contain spaces. E.g. "F wombat" attempts to find the
+      string "wombat".
+      The old syntax (using a non-alphanumeric separator) is still
+      allowed, so it's still possible to have strings with spaces or
+      reserved characters (brackets and semicolon) in it.
+
+    - The "Shift-Space" key combination now gives a "normal" space.
+
+
+    Bug fixes
+    ---------
+
+    - When joining two lines resulted in a line longer than 254
+      characters, QED locked up. This has been fixed now.
+
+    - Deleting the entire file using a DB command resulted in a
+      crash. Fixed now.
+

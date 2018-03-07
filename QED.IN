@@ -1,0 +1,106 @@
+* QED TEXT EDITOR by Jan Bredenbeek
+* Start: 27 June 1988
+* Release 1.00: August 1988
+* Release 1.01: September 1988 (stable)
+* Release 2.00beta: September 1994 (UNSTABLE!)
+* Licenced under GPL v3 Licence (2017)
+* See https://github.com/janbredenbeek/QED for latest version from the author
+* This should be assembled and linked using the GST Macro Assembler and Linker
+* (see http://www.dilwyn.me.uk/asm/index.html)
+*
+* QED DEFINITIONS
+*
+
+version  SETSTR   2.00b2
+
+* Macro for calling ERRMSG
+
+ERRMSG   MACRO    A
+[.LAB]   LEA      .S.[.L],A1
+         BSR.[.EXT] ERRMSG
+         SECTION  MSG
+.S.[.L]  STRING$  {[A]}
+         SECTION  CODE
+         ENDM
+
+* Equates
+
+TAB      EQU      9
+LF       EQU      $0A
+CR       EQU      $0D
+ESC      EQU      $1B
+K_TAB    EQU      9
+K_ENTER  EQU      $0A
+K_ESC    EQU      $1B
+K_LEFT   EQU      $C0
+K_RIGHT  EQU      $C8
+K_UP     EQU      $D0
+K_DOWN   EQU      $D8
+K.ALT    EQU      $01      MASK FOR ALT
+K.CTRL   EQU      $02      MASK FOR CTRL
+K.SHIFT  EQU      $04      MASK FOR SHIFT
+K_F1     EQU      $E8
+K_SHF1   EQU      $EA
+K_F2     EQU      $EC
+K_SHF2   EQU      $EE
+K_F3     EQU      $F0
+K_SHF3   EQU      $F2
+K_F4     EQU      $F4
+K_SHF4   EQU      $F6
+K_F5     EQU      $F8
+K_SHF5   EQU      $FA
+
+CMDLEN   EQU      256
+
+* Storage definitions
+
+         OFFSET   0
+
+GUARDWIN DS.L     1        ID of guardian window ("outline")
+TXTWIN   DS.L     1        ID of text window
+CMDWIN   DS.L     1        ID of command/error message window
+ERR_SP   DS.L     1        Top of user stack
+ENVSAV   DS.L     1        Pointer to file environment save area
+REDIR    DS.B     1        !0 if windows redirected
+         DS.W     0
+CMDBUF   DS.B     256      Command line
+
+* next area until ENV_END is kept for each file edited
+
+NEXTFILE DS.L     1        Link to parameters of next file (or 0)
+TXTBASE  DS.L     1        Base of text buffer
+TXTEND   DS.L     1        1 past last used location of text buffer
+TXTMAX   DS.L     1        1 past last location of text buffer
+WORKSPC  DS.W     1        Default workspace size
+WORKSPOV DS.W     1        Workspace size overhead
+MAXLINE  DS.W     1        Highest line number
+LNTBLSIZ DS.W     1        Size of line table
+WINWID   DS.W     1        Window width in characters
+WINLEN   DS.W     1        Window height in lines
+LINELEN  DS.W     1        Length of line in line buffer
+LEFTMAR  DS.W     1        Left margin (from 0 upwards)
+RIGHTMAR DS.W     1        Right margin
+TABINC   DS.W     1        Tab distance
+BLKSTART DS.W     1        Line number of block start (or -1)
+BLKEND   DS.W     1        Line number of block end (or -1)
+RTLIN1   DS.W     1        First return line number
+RTLIN2   DS.W     1        Second return line number
+RTLIN3   DS.W     1        Third return line number
+STARTLN  DS.W     1        Line number to start display
+EDIT_LN  DS.B     1        Line in buffer (<>0) or not (0)
+EDIT_TXT DS.B     1        Text altered (<>0) or not (0)
+OVERWMOD DS.B     1        Mode: 0 insert, <>0 overwrite
+COOKED   DS.B     1        Raw (0) or Cooked mode (!0)
+WORDWRAP DS.B     1        Wordwrap (!0) or not (0)
+AUTOINDT DS.B     1        Autoindent (!0) or not (0)
+TABEXPND DS.B     1
+TABCOMPR DS.B     1
+MSGPRNTD DS.B     1        Error message printed (<>0) or not (0)
+STPRINTD DS.B     1        Status printed (<>0) or not (0)
+         DS.W     0        (Next areas must start at word boundary)
+FILENAME DS.B     2+44     Name of file being edited (length+ASCII)
+LINEBUF  DS.B     256      Buffer for editing current line
+FINDSTR  DS.B     2+254    Current "find" string
+ENV_END  EQU      *        End of file environment
+
+         DATA     1536     Size of data area

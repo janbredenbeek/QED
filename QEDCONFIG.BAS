@@ -1,5 +1,6 @@
-100 REMark QED configuration program V1.02
+100 REMark QED configuration program V4.00
 105 REMark 20160221: allow for windows larger than 512x256 on QPC2
+107 REMark 20180117: Updated for QED v2.00b2
 110 WINDOW 448,200,32,16:MODE 4:PAPER 2:INK 7:CSIZE 1,0:CLS
 120 CLS:PRINT "*** QED CONFIGURATION ***"\\
 130 PRINT "Allows you to change the QED initial settings"\\
@@ -10,8 +11,8 @@
 180 CLOSE#3
 190 FOR i=23,25:prog(i)=prog(i)+1
 200 help$="":FOR i=1 TO prog(43):help$=help$&CHR$(prog(i+43))
-210 CLS:PRINT 'Use Â¾Â¿ keys to select option'
-220 PRINT 'Use Â¼Â½ keys to change selected option'
+210 CLS:PRINT 'Use ¾¿ keys to select option'
+220 PRINT 'Use ¼½ keys to change selected option'
 230 PRINT 'Press ENTER to end'
 240 AT 4,0:FOR i=0 TO 14:PRINT opname$(i);":";TO 29;prog(optpos(i))
 250 PRINT opname$(15);": ";TO 29;help$
@@ -37,8 +38,8 @@
 450 winwid=winwid-4*bordwid:winwid=winwid-(winwid MOD xinc)
 460 winlen=winlen-2*bordwid:winlen=winlen-(winlen MOD 10)
 470 INK prog(35):draw_win
-480 PRINT "Use Â¼Â½ keys to reposition window"
-490 PRINT "Use ALT Â¼Â½ keys to resize window"
+480 PRINT "Use ¼½ keys to reposition window"
+490 PRINT "Use ALT ¼½ keys to resize window"
 500 PRINT "Press ENTER when finished"
 510 REPeat win_loop
 520   key=CODE(INKEY$(-1)):IF key=10:EXIT win_loop

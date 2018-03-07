@@ -2,17 +2,18 @@
 * Start: 27 June 1988
 * Release 1.00: August 1988
 * Release 1.01: September 1988 (stable)
+* Release 2.00beta: September 1994 (UNSTABLE!)
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
 * (see http://www.dilwyn.me.uk/asm/index.html)
 *
-* Support routines
+* Support Routines
 *
 
-         INCLUDE  FLP1_MACRO_LIB
-         INCLUDE  FLP1_QDOS_IN_MAC
-         INCLUDE  FLP2_QED_DEF
+         INCLUDE  WIN1_MACRO_LIB
+         INCLUDE  WIN1_QDOS_IN_MAC
+         INCLUDE  WIN2_QEDv2_QED_IN
 
          XREF     MAIN_ERR,REPORT_P,REPORT_I,END_FILE
 
@@ -22,15 +23,18 @@
 
          XDEF     MK_LNTBL
 
-MK_LNTBL MOVEM.L  D1/D3/A1-A2,-(A7)
+MK_LNTBL MOVEM.L  D1/D3/A0-A2,-(A7)
          MOVEM.L  TXTBASE(A6),A1-A2
          MOVEQ    #-1,D1
          MOVEQ    #LF,D3
-MKL_LP   CMPA.L   A2,A1
+MKL_LP   LEA      255(A1),A0
+MKL_LP1  CMPA.L   A2,A1
          BHS.S    MKL_EN1
+         CMPA.L   A0,A1
+         BHS.S    MKL_INC
          CMP.B    (A1)+,D3
-         BNE      MKL_LP
-         ADDQ.W   #1,D1
+         BNE      MKL_LP1
+MKL_INC  ADDQ.W   #1,D1
          BVC      MKL_LP
          MOVE.L   A1,TXTEND(A6)
          ERRMSG   {'Too many lines (>32768) - Extra ignored'}
@@ -44,22 +48,24 @@ MKL_EN1  TST.W    D1
          ENDIF
          MOVE.W   D1,MAXLINE(A6)
          ADDI.W   #256,D1
-         BSR.S    ALLOC_LN
-         BEQ.S    MKL_END
-MKL_TRNC ERRMSG   {'Lines truncated'}
-MKL_END  MOVEM.L  (A7)+,D1/D3/A1-A2
+         BSR      ALLOC_LN
+         BLE.S    MKL_END
+MKL_TRNC ERRMSG   {'Long lines split'}
+MKL_END  MOVEM.L  (A7)+,D1/D3/A0-A2
+         TST.L    D0
          RTS
 
 * INSERT D1 ENTRIES IN LINE TABLE
 
          XDEF     INSRT_LN
 
-INSRT_LN MOVEM.L  A1-A2,-(A7)
+INSRT_LN MOVEQ    #0,D0
+         MOVEM.L  D0/A1-A2,-(A7)
          MOVEQ    #-1,D0
          MOVE.L   D0,BLKSTART(A6)
          MOVE.W   MAXLINE(A6),D0
          ADD.W    D1,D0
-         BVS.S    ALN_ERR
+         BVS.S    ILN_ERR2
          CMP.W    LNTBLSIZ(A6),D0
          BLO.S    ILN_MOVE
          MOVEM.L  D0-D3/A0/A3,-(A7)
@@ -68,7 +74,9 @@ INSRT_LN MOVEM.L  A1-A2,-(A7)
          MOVE.L   (A7),D1
          ADDI.W   #256,D1
          BSR.S    ALLOC_LN
+         MOVE.L   D0,24(A7)
          MOVEM.L  (A7)+,D0-D3/A0/A3
+         BLT.S    ILN_ERR
 ILN_MOVE MOVE.W   D0,MAXLINE(A6)
          SUB.W    D1,D0
          ADDQ.W   #1,D0
@@ -78,12 +86,18 @@ ILN_MOVE MOVE.W   D0,MAXLINE(A6)
          BRA.S    ILN_MVE
 ILN_MVL  MOVE.B   -(A1),-(A2)
 ILN_MVE  DBF      D0,ILN_MVL
-         MOVEM.L  (A7)+,A1-A2
+         MOVEQ    #0,D0
+ILN_END  MOVEM.L  (A7)+,D0/A1-A2
+         TST.L    D0
          RTS
-ALN_ERR  ERRMSG   {'No room for line table'}
+ILN_ERR2 ERRMSG   {'Too many lines (>32767)'}
+         MOVEQ    #ERR.OR,D0
+         BRA      ILN_END
+ILN_ERR  ERRMSG   {'No room for line table'}
          SF       EDIT_LN(A6)
          SUBA.L   A5,A5
-         BRA      MAIN_ERR
+         MOVEQ    #ERR.OM,D0
+         BRA      ILN_END
 
 *ALLOCATE AND CONSTRUCT LINE LENGTH TABLE
 
@@ -102,26 +116,22 @@ ALLOC_LN MOVEM.L  D2-D4/A0-A3,-(A7)
          MOVEQ    #LF,D3
          MOVE.L   #255,D4
 ALN_NEWL MOVE.L   A1,A0
+         LEA      (A0,D4.W),A3
 ALN_LP   CMPA.L   A2,A1
          BHS.S    ALN_END
+         CMPA.L   A3,A1
+         BHS.S    ALN_LONG
          CMP.B    (A1)+,D3
          BNE      ALN_LP
-         MOVE.L   A1,D1
+ALN_LEN  MOVE.L   A1,D1
          SUB.L    A0,D1
          MOVE.B   D1,(A5,D2.W)
          ADDQ.W   #1,D2
-         SUB.L    D4,D1
-         BLE      ALN_NEWL
-         MOVE.B   D4,-1(A5,D2.W)
-         LEA      -1(A0,D4.W),A1
-         NEG.L    D1
-         BSR      MOV_TXT
-         MOVE.L   TXTEND(A6),A2
-         MOVEQ    #1,D0
-         ADDQ.W   #1,A1
          BRA      ALN_NEWL
+ALN_LONG MOVEQ    #1,D0
+         BRA      ALN_LEN
 ALN_END  MOVE.L   A0,TXTEND(A6)
-         MOVEM.L  (A7)+,D2-D4/A0-A3
+ALN_ERR  MOVEM.L  (A7)+,D2-D4/A0-A3
          TST.L    D0
          RTS
 
@@ -144,39 +154,127 @@ DLN_MVE  DBF      D0,DLN_MVL
          MOVEM.L  (A7)+,A1-A2
          RTS
 
+* Compress spaces into tabs
+* Entry: D1 line length, A1 ptr to line
+* Exit : D1 new line length, other regs preserved
+
+         XDEF     CMPTABS
+
+CMPTABS  TST.B    TABCOMPR(A6)
+         BEQ      CT_RTS
+         MOVEM.L  D0/D2-D4/A0-A1,-(A7)
+         MOVE.L   A1,A0
+         MOVEQ    #0,D2
+         MOVEQ    #-1,D3
+         MOVEQ    #0,D4
+CT_LOOP  SUBQ.W   #1,D1
+         BLT.S    CT_DOSPC
+         MOVE.B   (A1)+,D0
+         CMPI.B   #$27,D0           Single quote
+         BEQ.S    CT_QUOTE
+         CMPI.B   #$22,D0           Double quote
+         BEQ.S    CT_QUOTE
+         TST.B    D4
+         BNE.S    CT_NOSPC
+         CMPI.B   #' ',D0
+         BEQ.S    CT_SPACE
+         CMPI.B   #TAB,D0
+         BEQ.S    CT_SPACE
+CT_TEST  TST.W    D3
+         BPL.S    CT_DOSPC
+CT_NOSPC MOVE.B   D0,(A0)+
+CT_INC   ADDQ.W   #1,D2
+         BRA      CT_LOOP
+CT_QUOTE TST.B    D4
+         BNE.S    CT_QOUT
+         MOVE.B   D0,D4
+         BRA      CT_TEST
+CT_QOUT  CMP.B    D0,D4
+         BNE      CT_NOSPC
+         MOVEQ    #0,D4
+         BRA      CT_NOSPC
+CT_SPACE TST.W    D3
+         BPL.S    CT_SPC2
+         MOVE.L   D2,D3
+CT_SPC2  CMPI.B   #TAB,D0
+         BNE      CT_INC
+         BSR.S    DO_TAB
+         BRA      CT_LOOP
+CT_DOSPC TST.W    D3
+         BMI.S    CT_END
+         MOVE.L   D2,D0
+         DIVU     TABINC(A6),D0
+         DIVU     TABINC(A6),D3
+         SUB.W    D3,D0
+         BNE.S    CT_TABS
+         SWAP     D0
+         SWAP     D3
+         SUB.W    D3,D0
+         BRA.S    CT_SPCSN
+CT_TABS  MOVE.B   #TAB,(A0)+
+         SUBQ.W   #1,D0
+         BGT      CT_TABS
+         SWAP     D0
+         BRA.S    CT_SPCSN
+CT_SPCS  MOVE.B   #' ',(A0)+
+CT_SPCSN DBF      D0,CT_SPCS
+         MOVE.B   -1(A1),D0
+         MOVEQ    #-1,D3
+         TST.W    D1
+         BGE      CT_NOSPC
+CT_END   MOVE.L   A0,D1
+         MOVEM.L  (A7)+,D0/D2-D4/A0-A1
+         SUB.L    A1,D1
+CT_RTS   RTS
+
+* Advance to next tab position
+* Entry: D2.L current column position
+* Exit : D0   # of columns to advance
+*        D2   new column position
+
+DO_TAB   MOVE.L   D2,D0
+         DIVU     TABINC(A6),D0
+         SWAP     D0
+         NEG.W    D0
+         ADD.W    TABINC(A6),D0
+         ADD.W    D0,D2
+         RTS
+
 *ENTER EDITED LINE INTO TEXT FILE
 
          XDEF     ENT_LINE,ENT_LIN1
 
-ENT_LIN1 SF       D0
+ENT_LIN1 MOVEQ    #1,D0
          BRA.S    EL_TEST
-ENT_LINE ST       D0
+ENT_LINE MOVEQ    #0,D0
 EL_TEST  CMPA.W   #0,A5
          BEQ.S    NO_LNTBL
          TST.B    EDIT_LN(A6)
          BEQ.S    EL_RTS
          SF       EDIT_LN(A6)
-         MOVEM.L  D1-D2/A1/A3,-(A7)
+         MOVEM.L  D0-D2/A1/A3,-(A7)
          MOVEQ    #0,D1
          MOVE.W   LINELEN(A6),D1
-         TST.B    D0
-         IF NE THEN
-            BSR      STRIPSPC
-         ENDIF
+         MOVE.L   A3,A1
+         BSR      CMPTABS
+         MOVE.W   D1,LINELEN(A6)
+         BSR      STRIPSPC
          MOVE.W   D1,D2
+         ADD.W    D0,D1
          ADDQ.W   #1,D1
-         MOVEQ    #0,D0
          MOVE.B   (A5,D7.W),D0
          SUB.L    D0,D1
          BSR.S    GETSCRLN
-         BSR.S    MOV_TXT
+         BSR      MOV_TXT
          BNE.S    EL_ERR
          ADD.B    D1,(A5,D7.W)
          BRA.S    EL_COPYE
 EL_COPYL MOVE.B   (A3)+,(A1)+
 EL_COPYE DBF      D2,EL_COPYL
+         TST.L    (A7)
+         BEQ.S    EL_END
          MOVE.B   #LF,(A1)
-         MOVEM.L  (A7)+,D1-D2/A1/A3
+EL_END   MOVEM.L  (A7)+,D0-D2/A1/A3
 EL_RTS   RTS
          XDEF     EL_ERR,NO_LNTBL
 EL_ERR   BSR      DSP_PAGE
@@ -202,6 +300,40 @@ GSL_LOOP MOVE.B   (A5,D7.W),D0
          BNE      GSL_LOOP
 GSL_END  MOVEM.L  (A7)+,D0-D1
          RTS
+
+* Get # of chars to be indented in D1 (either leftmargin or autoindent)
+
+         XDEF     GET_INDT
+
+GET_INDT MOVE.W   LEFTMAR(A6),D1
+         TST.B    AUTOINDT(A6)
+         BEQ.S    GI_END
+         MOVEM.L  D0/D2/D7/A0-A1,-(A7)
+         BSR      GETSCRLN
+GI_FINDL MOVE.L   A1,A0
+         MOVEQ    #0,D2
+         MOVE.B   (A5,D7.W),D1
+GI_LOOP  SUBQ.B   #1,D1
+         BLS.S    GI_PREVL
+         CMPI.B   #TAB,(A0)
+         BEQ.S    GI_TAB
+         ADDQ.W   #1,D2
+         CMPI.B   #' ',(A0)+
+         BEQ.S    GI_LOOP
+         SUBQ.W   #1,D2
+         BRA.S    GI_END1
+GI_TAB   BSR      DO_TAB
+         ADDQ.L   #1,A0
+         BRA      GI_LOOP
+GI_PREVL MOVEQ    #0,D2
+         SUBQ.W   #1,D7
+         BLO.S    GI_END1
+         MOVE.B   (A5,D7.W),D2
+         SUBA.L   D2,A1
+         BRA      GI_FINDL
+GI_END1  MOVE.W   D2,D1
+         MOVEM.L  (A7)+,D0/D2/D7/A0-A1
+GI_END   RTS
 
 * MOVE TEXT FROM A1 TO TXTEND D1 BYTES FORWARD/BACKWARD
 
@@ -283,12 +415,12 @@ MT_RTS   MOVEM.L  (A7)+,D1/A0-A2
          XDEF     STRIPSPC
 
 STRIPSPC MOVE.W   LINELEN(A6),D1
-STRIPSP1 MOVEQ    #' ',D0
-         TST.W    D1
          BEQ.S    SS_END
-SS_LOOP  CMP.B    -1(A3,D1.W),D0
+SS_LOOP  CMP.B    #' ',-1(A3,D1.W)
+         BEQ.S    SS_STRIP
+         CMP.B    #TAB,-1(A3,D1.W)
          BNE.S    SS_END
-         SUBQ.W   #1,D1
+SS_STRIP SUBQ.W   #1,D1
          BNE      SS_LOOP
 SS_END   MOVE.W   D1,LINELEN(A6)
          RTS
@@ -302,20 +434,59 @@ COPYLINE MOVE.L   A5,D0
          BEQ      NO_LNTBL
          TAS      EDIT_LN(A6)
          BNE.S    CL_END
-         MOVEM.L  D1/A1/A3,-(A7)
+         MOVEM.L  D1/A1,-(A7)
          BSR      GETSCRLN
-         MOVE.L   A1,A3
          MOVEQ    #0,D1
          MOVE.B   (A5,D7.W),D1
-         SUBQ.B   #1,D1
-         BSR      STRIPSP1
-         LEA      LINEBUF(A6),A3
+         CMPI.B   #LF,-1(A1,D1.W)
+         IF EQ THEN
+            SUBQ.W   #1,D1
+         ENDIF
          MOVE.W   D1,LINELEN(A6)
-         BRA.S    CL_COPYE
-CL_COPYL MOVE.B   (A1)+,(A3)+
-CL_COPYE DBF      D1,CL_COPYL
-         MOVEM.L  (A7)+,D1/A1/A3
+         MOVE.L   A3,-(A7)
+         TST.B    TABEXPND(A6)
+         BEQ.S    CL_CP_E
+         MOVE.L   D3,-(A7)
+         MOVE.L   #255,D3
+         BSR.S    CL_COPY
+         MOVE.L   (A7)+,D3
+         MOVE.W   D1,LINELEN(A6)
+         BRA.S    CL_STRIP
+CL_CP_L  MOVE.B   (A1)+,(A3)+
+CL_CP_E  DBF      D1,CL_CP_L
+CL_STRIP MOVE.L   (A7)+,A3
+         BSR      STRIPSPC
+         MOVEM.L  (A7)+,D1/A1
 CL_END   RTS
+
+* Copy line from (A1) to (A3) (length in D1)
+* D3: Maximum size of destination buffer
+* Expands TAB characters
+
+         XDEF     CL_COPY
+
+CL_COPY  MOVEM.L  D0/D2,-(A7)
+         MOVEQ    #0,D2
+         BRA.S    CL_COPYN
+CL_COPYL CMPI.B   #TAB,(A1)
+         BEQ.S    CLC_TAB
+         MOVE.B   (A1)+,(A3)+
+         ADDQ.W   #1,D2
+         BRA.S    CL_COPYN
+CLC_TAB  BSR      DO_TAB
+         CMP.L    D3,D2
+         BLS.S    CL_CPSPC
+         SUB.W    D0,D2
+         BRA.S    CL_COPYE
+CL_CPSPC MOVE.B   #' ',(A3)+
+         SUBQ.W   #1,D0
+         BGT      CL_CPSPC
+         ADDQ.L   #1,A1
+CL_COPYN CMP.L    D3,D2
+         DBHS     D1,CL_COPYL
+CL_COPYE MOVE.W   D2,D1
+         MOVEM.L  (A7)+,D0/D2
+         RTS
 
 * DISPLAY A PAGE OF TEXT
 * A4: START OF TOP LINE
@@ -331,11 +502,11 @@ DSP_PAGE MOVEM.L  D1/D4-D7/A1,-(A7)
          SUB.W    D5,D7
          MOVEQ    #0,D4
          MOVEQ    #0,D5
-DSPP_LP  CMP.W    18(A7),D7
-         BNE.S    DSPP_LIN
-         TST.B    EDIT_LN(A6)
-         BEQ.S    DSPP_LIN
-         BSR.S    DSP_BUF
+DSPP_LP  CMP.W    18(A7),D7         Current line?
+         BNE.S    DSPP_LIN          No
+         TST.B    EDIT_LN(A6)       Line is being edited?
+         BEQ.S    DSPP_LIN          No
+         BSR.S    DSP_BUF           Display buffer rather than line from file
          BRA.S    DSPP_NXT
 DSPP_LIN BSR.S    DSP_LINE
 DSPP_NXT MOVEQ    #0,D0
@@ -354,29 +525,94 @@ DSPP_END MOVEM.L  (A7)+,D1/D4-D7/A1
 
          XDEF     DSP_BUF,DSP_LINE
 
-DSP_BUF  MOVEM.L  D1-D2/A1,-(A7)    DISPLAY LINE IN EDIT BUFFER
+DSP_BUF  MOVEM.L  D1-D2/D4/D6/A1,-(A7)    DISPLAY LINE IN EDIT BUFFER
          LEA      LINEBUF(A6),A1
-         MOVE.W   LINELEN(A6),D2
+         MOVE.W   LINELEN(A6),D1
          BRA.S    DSPLIN_0
-DSP_LINE MOVEM.L  D1-D2/A1,-(A7)    DISPLAY LINE AT (A1)
-         MOVEQ    #0,D2
-         MOVE.B   (A5,D7.W),D2
-         SUBQ.B   #1,D2
-DSPLIN_0 MOVEM.L  D2/A1,-(A7)
+DSP_LINE MOVEM.L  D1-D2/D4/D6/A1,-(A7)    DISPLAY LINE AT (A1)
+         MOVEQ    #0,D1
+         MOVE.B   (A5,D7.W),D1
+         CMPI.B   #LF,-1(A1,D1.W)
+         BNE.S    DSPLIN_0
+         SUBQ.W   #1,D1             Don't display trailing LF
+DSPLIN_0 MOVEM.L  D1/A1,-(A7)
          MOVE.W   D4,D1
          MOVE.W   D5,D2
+         MOVEQ    #-1,D3
+         MOVE.L   TXTWIN(A6),A0
          QDOS     SD.POS
-         MOVEM.L  (A7)+,D2/A1
-         SUB.W    D6,D2
-         BLE.S    DSPL_END
-         MOVE.W   WINWID(A6),D1
-         SUB.W    D4,D1
+         MOVEM.L  (A7)+,D1/A1
+         TST.B    TABEXPND(A6)      Should TABs be expanded?
+         BNE.S    DS_TAB            Yes
+         SUB.W    D6,D1             If not, code is straightforward
+         BLE      DSPL_END
+         MOVE.W   WINWID(A6),D2
+         SUB.W    D4,D2
+         BLE      DSPL_END
          CMP.W    D1,D2
          BLE.S    DSPLIN_1
          MOVE.W   D1,D2
 DSPLIN_1 ADDA.W   D6,A1
          QDOS     IO.SSTRG
-DSPL_END MOVEM.L  (A7)+,D1-D2/A1
+         BRA.S    DSPL_END
+
+* the following code handles displaying of lines where TABs are required
+* to be displayed as expected. First of all, we have to skip characters until
+* we are at least at column D6.
+
+DS_TAB   MOVEQ    #0,D2             Start at column zero.
+         BRA.S    DST_NXT
+DST_LP   CMPI.B   #TAB,(A1)+        TAB found?
+         BEQ.S    DST_TAB           Yes
+         ADDQ.W   #1,D2             if not, simply bump column by one
+         BRA.S    DST_NXT
+DST_TAB  BSR      DO_TAB            Advance D2 to next tab stop
+DST_NXT  CMP.W    D6,D2             Are we now at column D6?
+         DBGE     D1,DST_LP         If not loop back unless physical EOL
+         SUB.W    D6,D2             D2 = columns to advance cursor (if any)
+         BLE.S    DST_DSP
+DST_CTAB ADD.W    D2,D4
+         ADD.W    D2,D6
+         MOVEM.L  D1/A1,-(A7)
+         MOVE.W   D4,D1
+         QDOS     SD.TAB
+         MOVEM.L  (A7)+,D1/A1
+
+* Now enter a loop to print each portion of the line between TABs
+
+DST_DSP  CMP.W    WINWID(A6),D4     End of window reached?
+         BGE.S    DSPL_END          Yes
+         SUBQ.W   #1,D1             Decrease character count
+         BLT.S    DSPL_END
+         CMPI.B   #TAB,(A1)+        Is it a TAB?
+         BNE.S    DST_NTAB          no
+         MOVEQ    #0,D2
+         MOVE.W   D6,D2             Get logical column pos
+         BSR      DO_TAB            ...and move to next tab stop
+         MOVE.W   D0,D2
+         BRA      DST_CTAB          Jump back to advance cursor
+DST_NTAB PEA      -1(A1)            Push original ptr
+DST_NTLP SUBQ.W   #1,D1
+         BLT.S    DST_NTEN
+         CMPI.B   #TAB,(A1)+
+         BNE      DST_NTLP
+         ADDQ.W   #1,D1
+         SUBQ.L   #1,A1
+DST_NTEN MOVE.L   A1,D2
+         MOVE.L   (A7)+,A1
+         SUB.L    A1,D2
+         MOVE.W   WINWID(A6),D0
+         SUB.W    D4,D0
+         CMP.W    D0,D2
+         BLE.S    DST_NTOT
+         MOVE.W   D0,D2
+DST_NTOT MOVE.L   D1,-(A7)
+         QDOS     IO.SSTRG
+         MOVE.L   (A7)+,D1
+         ADD.W    D2,D4
+         ADD.W    D2,D6
+         BRA      DST_DSP
+DSPL_END MOVEM.L  (A7)+,D1-D2/D4/D6/A1
          RTS
 
 * Open file with TK2 DATA_USE default
@@ -395,7 +631,7 @@ OPEN_DEF MOVEM.L  D1-D3/A0-A2,-(A7)
          MOVE.L   (A7)+,D0
          LEA      $B0(A0),A0        Get TK2 DATA_USE ptr
          TST.L    (A0)
-         BEQ      OF_END            Exit with error code if no TK2
+         BEQ.S    OF_END            Exit with error code if no TK2
          MOVE.L   (A0),A1           A1 points to dir string
          MOVE.L   12(A7),A0         Pointer to filename
          MOVE.W   (A0),D0
@@ -430,8 +666,10 @@ OF_AGAIN MOVEQ    #-1,D1
          BEQ.S    OF_OK             Exit if OK
          CMPI.L   #ERR.EX,D0        "Already exists"?
          BNE.S    OF_END            Exit if not
-OF_DELET MOVEQ    #-1,D1
-         MOVE.L   12(A7),A0
+         CMPI.B   #IO.OVER,D3       Return an error if we didn't
+         BNE.S    OF_END            request an overwrite
+OF_DELET MOVEQ    #-1,D1            This code handles drivers which don't
+         MOVE.L   12(A7),A0         support overwrite (old MDV etc)
          QDOS     IO.DELET          Delete old version
          BRA      OF_AGAIN          Loop back to open new
 OF_OK    MOVE.L   A0,12(A7)
@@ -469,40 +707,68 @@ DISPSTAT MOVEM.L  A0-A2,-(A7)
          MOVE.L   CMDWIN(A6),A0
          MOVEQ    #-1,D3
          TAS      STPRINTD(A6)
-         IF EQ THEN
-            MOVE.B   REPORT_P,D1
-            QDOS     SD.SETPA
-            MOVE.B   REPORT_P,D1
-            QDOS     SD.SETST
-            MOVE.B   REPORT_I,D1
-            QDOS     SD.SETIN
-            QDOS     SD.CLEAR
-            PRINT    {'Line        Col      Line count:        Mode: '}
-            TST.B    OVERWMOD(A6)
-            IF EQ THEN
-               PRINT    {'INSERT'}
-            ELSE
-               PRINT    {'OVERWRITE'}
-            ENDIF
-         ENDIF
-         MOVEQ    #5,D1
+         BNE.S    DS_PARMS
+         MOVE.B   REPORT_P,D1
+         QDOS     SD.SETPA
+         MOVE.B   REPORT_P,D1
+         QDOS     SD.SETST
+         MOVE.B   REPORT_I,D1
+         QDOS     SD.SETIN
+         QDOS     SD.CLEAR
+         PRINT    {'L:        C:      N:        Mode: '}
+         MOVE.W   #'OI',D1
+         TST.B    OVERWMOD(A6)
+         BSR.S    DS_MODE
+         MOVE.W   #'A ',D1
+         TST.B    AUTOINDT(A6)
+         BSR.S    DS_MODE
+         MOVE.W   #'T ',D1
+         TST.B    TABCOMPR(A6)
+         BSR.S    DS_MODE
+         MOVE.W   #'W ',D1
+         TST.B    WORDWRAP(A6)
+         BSR.S    DS_MODE
+         MOVEQ    #41,D1
+         QDOS     SD.TAB
+         LEA      FILENAME(A6),A1
+         MOVE.W   (A1)+,D2
+         MOVE.W   WINWID(A6),D0
+         SUBI.W   #41,D0
+         CMP.W    D0,D2
+         BLE.S    DS_FNAME
+         MOVE.W   D0,D2
+DS_FNAME QDOS     IO.SSTRG
+DS_PARMS MOVEQ    #3,D1
          QDOS     SD.TAB
          MOVE.W   D7,D1
          MOVEQ    #5,D2
          BSR.S    DS_NUM1
-         MOVEQ    #16,D1
+         MOVEQ    #13,D1
          QDOS     SD.TAB
          MOVE.W   D6,D1
          MOVEQ    #3,D2
          BSR.S    DS_NUM1
-         MOVEQ    #33,D1
+         MOVEQ    #21,D1
          QDOS     SD.TAB
          MOVE.W   MAXLINE(A6),D1
          MOVEQ    #5,D2
          BSR.S    DS_NUM1
+         MOVEQ    #40,D1
+         QDOS     SD.TAB
+         MOVE.W   #'* ',D1
+         TST.B    EDIT_TXT(A6)
+         BSR.S    DS_MODE
          MOVEM.L  (A7)+,A0-A2
          RTS
+
+DS_MODE  BEQ.S    DS_MODE1
+         LSR.W    #8,D1
+DS_MODE1 QDOS     IO.SBYTE
+         RTS
+
          XDEF     DS_NUM,DS_NUM1
+
+
 DS_NUM1  ADDQ.W   #1,D1
 DS_NUM   SUBQ.W   #6,A7
          MOVE.L   A7,A1
@@ -636,4 +902,3 @@ FL_END   MOVEM.L  (A7)+,D7/A0
          DC.W     0
 
          END
- 

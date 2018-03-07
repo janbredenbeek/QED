@@ -1,3 +1,16 @@
-INPUT FLP2_QED_REL
-INPUT FLP2_QED2_REL
+* QED TEXT EDITOR by Jan Bredenbeek
+* Start: 27 June 1988
+* Release 1.00: August 1988
+* Release 1.01: September 1988 (stable)
+* Release 2.00beta: September 1994 (UNSTABLE!)
+* Licenced under GPL v3 Licence (2017)
+* See https://github.com/janbredenbeek/QED for latest version from the author
+* This should be assembled and linked using the GST Macro Assembler and Linker
+* (see http://www.dilwyn.me.uk/asm/index.html)
+*
+* Linker file
+*
 
+INPUT WIN2_QEDv2_QED_REL
+INPUT WIN2_QEDv2_QEDCMD_REL
+INPUT WIN2_QEDv2_QED2_REL

@@ -2,7 +2,8 @@
 * Start: 27 June 1988
 * Release 1.00: August 1988
 * Release 1.01: September 1988 (stable)
-* Release 2.00beta: September 1994 (UNSTABLE!)
+* Release 2.00b1: September 1994 (UNSTABLE!)
+* Release 2.00b2: January 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
@@ -13,7 +14,7 @@
 
          INCLUDE  WIN1_MACRO_LIB
          INCLUDE  WIN1_QDOS_IN_MAC
-         INCLUDE  WIN2_QEDv2_QED_IN
+         INCLUDE  WIN3_QEDv2_QED_IN
 
          XREF     CMDLN_P,CMDLN_I,MAIN_ERR,READNUM,SPLIT_LN
          XREF     LEFT,ALEFT,SLEFT,CALEFT,RIGHT,ARIGHT,SRIGHT,CRIGHT,SCRIGHT

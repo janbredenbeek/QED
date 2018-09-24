@@ -4,6 +4,7 @@
 * Release 1.01: September 1988 (stable)
 * Release 2.00b1: September 1994 (UNSTABLE!)
 * Release 2.00b2: January 2018
+* Release 2.01  : 25 September 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
@@ -13,7 +14,7 @@
 
          INCLUDE  WIN1_MACRO_LIB             Macro definitions
          INCLUDE  WIN1_QDOS_IN_MAC           QDOS definitions
-         INCLUDE  WIN2_QEDv2_QED_IN          QED Definitions
+         INCLUDE  WIN3_QEDv2_QED_IN          QED Definitions
 
 * External references         
          
@@ -635,8 +636,7 @@ SIGNON1  STRING$  {'QED'}
          DC.W     0
 SIGNON2  STRING$  {'QL Text Editor'}
          STRING$  {'Version [version]'}
-         STRING$  {'Copyright  1988-93 by Jan Bredenbeek'}
-         STRING$  {'Hilversum, Holland'}
+         STRING$  {'Copyright  1988-2018 by Jan Bredenbeek'}
          DC.W     0
          SECTION  CODE
 
@@ -667,6 +667,8 @@ MAIN_KEY QDOS     IO.FBYTE
          BEQ.S    MAINCTRL
          CMPI.B   #LF,D1
          BEQ.S    MAINCTRL
+         CMPI.B   #ESC,D1
+         BEQ.S    MAINCTRL                 
          CMPI.B   #$BF,D1
          BLS.S    ENT_CHR
          CMPI.B   #$FC,D1           Shift-SPACE

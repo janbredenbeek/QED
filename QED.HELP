@@ -2,19 +2,18 @@
                          =====
 
                      QL Text Editor
-             Copyright  1988 Jan Bredenbeek
-                   Hilversum, Holland
+           Copyright  1988-2018 Jan Bredenbeek
 
 
 Cursor movement            Delete
 ---------------            ------
-      Â¼ Â½ Character        CTRL Â¼ Â½       Character
-SHIFT Â¼ Â½ Word             CTRL SHIFT Â¼ Â½ Word
-ALT   Â¼ Â½ Start/End line   CTRL ALT Â¼     Line
-      Â¾ Â¿ Line             CTRL ALT Â½  to End of line
-SHIFT Â¾ Â¿ Page
-ALT   Â¾ Â¿ Scroll
-CTRL  Â¾ Â¿ Search backward/forward
+      ¼ ½ Character        CTRL ¼ ½       Character
+SHIFT ¼ ½ Word             CTRL SHIFT ¼ ½ Word
+ALT   ¼ ½ Start/End line   CTRL ALT ¼     Line
+      ¾ ¿ Line             CTRL ALT ½  to End of line
+SHIFT ¾ ¿ Page
+ALT   ¾ ¿ Scroll
+CTRL  ¾ ¿ Search backward/forward
 
 Single-key commands
 -------------------
@@ -25,7 +24,7 @@ F2       Re-execute last command line
 F3       Enter command line
 SHIFT F3 Edit last command line
 F4       Change Insert/Overwrite mode
-F5       Redraw screen
+F5       Edit next file / Redraw screen
 
 Extended commands
 -----------------
@@ -55,18 +54,26 @@ NW      Move to next word
 P       Move to previous line
 PW      Move to previous word
 Q       Quit editor without saving text
-R/s/    Re-enter editor with file <s>
+QF      Quit current file
+R/s/    Edit file <s>, keeping current file(s)
 RP      Repeat until error
 RT      Return to last line (max. 3x)
 S       Split line at cursor
 SA/s/   Save text to file <s> (or default file)
 SB      Show block
+SC/s/   Save text to file <s>, adding CR to lines
 SH      Show current editor status
 SL n    Set left margin at <n>
 SR n    Set right margin at <n>
 ST n    Set tab distance to <n>
 T       Move to top of file
+TA      Toggle auto-indent
+TC      Toggle TAB compression
+TE      Toggle TAB expansion
+TI      Toggle Insert/Overwrite mode
+TW      Toggle Wordwrap
 TY/s/   Type string <s>
 U       Undo changes on current line
 WB/s/   Write block to file <s>
 X       Exit, writing text back
+XF      Exit and write back current file

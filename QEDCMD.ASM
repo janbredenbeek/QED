@@ -4,6 +4,7 @@
 * Release 1.01: September 1988 (stable)
 * Release 2.00b1: September 1994 (UNSTABLE!)
 * Release 2.00b2: January 2018
+* Release 2.01: 25 September 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker

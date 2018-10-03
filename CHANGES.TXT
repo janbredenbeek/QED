@@ -1,19 +1,51 @@
-                           QED Version 2.00 beta
-                           =====================
+                                QED Version 2
+                                =============
 
 
-    This textfile describes the changes introduced in QED v2.00, compared
+    This textfile describes the changes introduced in QED v2, compared
     to v1.01.
-    Note that QED v2.00 is still in "beta" stadium, and thus it is
-    quite possible that some errors that have not been spotted by the
-    author will show up. If you find anything that looks like a bug,
-    please report it to me via E-mail:
 
-    Jan Bredenbeek, jan (at) bredenbeek.net
-    
+    v2.02 released 03 October 2018
+    ==============================
 
-    List of New Features
-    --------------------
+    New features
+    ------------
+
+    - The RC command can now be used to load a file in cooked mode. It is
+      equivalent to the R command, except that CR/LF line endings are converted
+      to LF and TABS compressed or expanded according to the TAB compression
+      and expansion settings.
+      Note that both R and RC commands currently do not accept a filename
+      containing spaces as parameter. These files can be loaded by using the R
+      or RC command without a parameter and then entering the file name at the
+      'File Name:' prompt.
+
+    - Help file didn't mention the F6 key (toggle Auto Indent), F7 key (toggle
+      Word Wrap), F9 key (toggle TAB expansion), and F10 key (toggle TAB
+      compression). Their status is now shown in the status line.
+
+    - The manual has (at last!) been updated for version 2.
+
+    Bug fixes
+    ---------
+
+    - Using the R command without a file name caused QED to crash with an
+      invalid file name. It now asks for the file name as expected.
+
+    - After using the QF or XF command, the status line was garbled.
+
+    Known issues
+    ------------
+
+    Options specified on the command line along with file names currently don't
+    take effect.
+
+
+    v2.01 released 25 September 2018
+    ================================
+
+    New Features
+    ------------
 
     - Multi-file editing is now possible. This can be done by
       specifying multiple filenames on the commandline, e.g.:
@@ -96,7 +128,7 @@
       It should be noted that QED will only compress TABs in _edited_
       lines, not the lines of the file which were not altered during
       an edit session! This can be overcome by loading a file in
-      "Cooked" mode - see further on in this document.
+      "Cooked" mode - see the manual.
       The "Expand TABs" option can be toggled using the TE command; 
       the "Compress TABs" option can be toggled using the TC command.
 

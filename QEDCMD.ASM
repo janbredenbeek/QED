@@ -4,7 +4,8 @@
 * Release 1.01: September 1988 (stable)
 * Release 2.00b1: September 1994 (UNSTABLE!)
 * Release 2.00b2: January 2018
-* Release 2.01: 25 September 2018
+* Release 2.01  : 25 September 2018
+* Release 2.02  : 03 October 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
@@ -341,7 +342,8 @@ GS_ENDS  MOVE.L   A2,D1
          ADD.W    D0,D1
          MOVEQ    #0,D0
          RTS
-NO_ARG   MOVEQ    #-1,D0
+NO_ARG   MOVEQ    #0,D1
+         MOVEQ    #-1,D0
          RTS
 * BAD_DLIM ERRMSG   {'Bad string delimiter'}
 *          BRA      MAIN_ERR
@@ -402,6 +404,8 @@ CMDTBL   DC.W     'A '
          DC.W     CMD_QF-*
          DC.W     'R '
          DC.W     CMD_R-*
+         DC.W     'RC'
+         DC.W     CMD_RC-*
          DC.W     'RT'
          DC.W     CMD_RT-*
          DC.W     'S '
@@ -525,6 +529,8 @@ Q_KILL   TST.L    NEXTFILE(A6)
          TAS      (A7)
          BNE      Q_TSTFIL
          BSR      DSP_PAGE
+         SF       MSGPRNTD(A6)
+         SF       STPRINTD(A6)
 Q_ABORT  BRA      MAIN_ERR
 
 CMD_X    MOVE.B   #1,-(A7)
@@ -548,6 +554,8 @@ X_NEXT   TST.L    NEXTFILE(A6)
          TAS      (A7)
          BNE      X_ENTER
          BSR      DSP_PAGE
+         SF       MSGPRNTD(A6)
+         SF       STPRINTD(A6)
          BRA      MAIN_ERR
 KILL_QED MOVE.L   GUARDWIN(A6),A0
          MOVEQ    #-1,D3
@@ -906,7 +914,10 @@ DB_DEL   MOVE.L   A1,A4
 DB_DISP  MOVE.W   D2,D1
          BRA      FIND_DSP
 
-CMD_R    BSR      GETSTR
+CMD_R    SF       COOKED(A6)
+         BRA.S    R_RC_1
+CMD_RC   ST       COOKED(A6)
+R_RC_1   BSR      GETSTR
          MOVEM.L  D1/A1,-(A7)
          BSR      FORK
          BNE      NO_ROOM

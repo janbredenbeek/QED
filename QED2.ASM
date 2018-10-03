@@ -4,7 +4,8 @@
 * Release 1.01: September 1988 (stable)
 * Release 2.00b1: September 1994 (UNSTABLE!)
 * Release 2.00b2: January 2018
-* Release 2.01: 25 September 2018
+* Release 2.01  : 25 September 2018
+* Release 2.02  : 03 October 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
@@ -701,6 +702,13 @@ ERRMSG   MOVEM.L  D0-D3/A0-A1,-(A7)
          MOVEM.L  (A7)+,D0-D3/A0-A1
          RTS
 
+* Subroutine used by DISPSTAT
+
+DS_MODE  BEQ.S    DS_MODE1
+         LSR.W    #8,D1
+DS_MODE1 QDOS     IO.SBYTE
+         RTS
+
 *DISPLAY STATUS
 
          XDEF     DISPSTAT
@@ -720,22 +728,25 @@ DISPSTAT MOVEM.L  A0-A2,-(A7)
          PRINT    {'L:        C:      N:        Mode: '}
          MOVE.W   #'OI',D1
          TST.B    OVERWMOD(A6)
-         BSR.S    DS_MODE
+         BSR      DS_MODE
          MOVE.W   #'A ',D1
          TST.B    AUTOINDT(A6)
-         BSR.S    DS_MODE
-         MOVE.W   #'T ',D1
+         BSR      DS_MODE
+         MOVE.W   #'E ',D1
+         TST.B    TABEXPND(A6)
+         BSR      DS_MODE
+         MOVE.W   #'C ',D1
          TST.B    TABCOMPR(A6)
-         BSR.S    DS_MODE
+         BSR      DS_MODE
          MOVE.W   #'W ',D1
          TST.B    WORDWRAP(A6)
-         BSR.S    DS_MODE
-         MOVEQ    #41,D1
+         BSR      DS_MODE
+         MOVEQ    #42,D1
          QDOS     SD.TAB
          LEA      FILENAME(A6),A1
          MOVE.W   (A1)+,D2
          MOVE.W   WINWID(A6),D0
-         SUBI.W   #41,D0
+         SUBI.W   #42,D0
          CMP.W    D0,D2
          BLE.S    DS_FNAME
          MOVE.W   D0,D2
@@ -755,21 +766,17 @@ DS_PARMS MOVEQ    #3,D1
          MOVE.W   MAXLINE(A6),D1
          MOVEQ    #5,D2
          BSR.S    DS_NUM1
-         MOVEQ    #40,D1
+         MOVEQ    #41,D1
          QDOS     SD.TAB
          MOVE.W   #'* ',D1
          TST.B    EDIT_TXT(A6)
-         BSR.S    DS_MODE
+         BSR      DS_MODE
          MOVEM.L  (A7)+,A0-A2
          RTS
 
-DS_MODE  BEQ.S    DS_MODE1
-         LSR.W    #8,D1
-DS_MODE1 QDOS     IO.SBYTE
-         RTS
+* Display numbers
 
          XDEF     DS_NUM,DS_NUM1
-
 
 DS_NUM1  ADDQ.W   #1,D1
 DS_NUM   SUBQ.W   #6,A7

@@ -5,6 +5,7 @@
 * Release 2.00b1: September 1994 (UNSTABLE!)
 * Release 2.00b2: January 2018
 * Release 2.01  : 25 September 2018
+* Release 2.02  : 03 October 2018
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the GST Macro Assembler and Linker
@@ -216,8 +217,9 @@ ED_CMDLN CLR.L    ENVSAV(A6)        ; Pointer to saved file environment
          SF       D2
 ED_NFILE LEA      CMDBUF(A6),A1
          SF       D1                ; No filename found yet
-ED_CMDLP BSR      SKIPCMD
-         BLE.S    ED_CMDEN
+         SF       COOKED(A6)
+ED_CMDLP BSR      SKIPCMD           ; Skip spaces
+         BLE.S    ED_CMDEN          ; End of command string reached
          CMPI.B   #'-',(A0)         ; Options start with '-'
          BEQ.S    ED_CMDOP
          CMPI.B   #'/',(A0)         ; or '/'
@@ -225,14 +227,14 @@ ED_CMDLP BSR      SKIPCMD
          TST.B    D1
          BNE.S    ED_FORK           ; But if new filename, start off current
          ST       D1                ; Signal "Filename found"
-ED_CMDOP MOVE.B   (A0)+,(A1)+
-         SUBQ.W   #1,D0             ; Copy into cmdbuf
-         BLE.S    ED_CMDEN
-         CMPI.B   #' ',(A0)
+ED_CMDOP MOVE.B   (A0),(A1)+        ; Copy into cmdbuf
+         SUBQ.W   #1,D0             ; Decrement length
+         BLE.S    ED_CMDEN          ; Jump if end reached
+         CMPI.B   #' ',(A0)+        ; Loop back unless char was a space
          BHI      ED_CMDOP
          BRA      ED_CMDLP
 ED_FORK  ST       D2
-         MOVE.B   #LF,(A1)+
+         MOVE.B   #LF,(A1)+         ; Terminate command line
          MOVEM.L  D0/D2/A0,-(A7)
          BSR      ED_LOAD
          TST.L    D0
@@ -315,69 +317,69 @@ ED_OPTAB DC.B     -2,'@'            Start at line n
          DC.W     0
 
 * Load a complete file
+* Filename and options must be in CMDBUF
 
          XDEF     ED_LOAD
 
-ED_LOAD  SUBA.L   A5,A5
-         CLR.L    TXTBASE(A6)
+ED_LOAD  SUBA.L   A5,A5             ; No line table yet
+         CLR.L    TXTBASE(A6)       ; Pre-set variables
          CLR.W    FILENAME(A6)
          CLR.W    WORKSPC(A6)
          CLR.W    WORKSPOV(A6)
          CLR.W    STARTLN(A6)
-         SF       COOKED(A6)
          SF       MSGPRNTD(A6)
          SF       STPRINTD(A6)
          LEA      CMDBUF(A6),A2
-ED_FNLP  BSR      SKIPSPC
-         BEQ      ED_TSTFN
-         CMPI.B   #'-',(A2)
+ED_FNLP  BSR      SKIPSPC           ; Point to next non-space
+         BEQ      ED_TSTFN          ; EOL reached
+         CMPI.B   #'-',(A2)         ; '-' or '/' marks an option
          BEQ.S    ED_OPT
          CMPI.B   #'/',(A2)
          BEQ.S    ED_OPT
-         LEA      FILENAME+2(A6),A1
-         MOVEQ    #0,D0
-ED_FNCP  MOVE.B   (A2)+,(A1)+
-         ADDQ.W   #1,D0
-         CMPI.B   #' ',(A2)
-         BLS.S    ED_ENDFN
-         CMPI.W   #44,D0
-         BLT      ED_FNCP
-         MOVE.W   D0,FILENAME(A6)
+         LEA      FILENAME+2(A6),A1 ; else, it's a filename
+         MOVEQ    #0,D0             ; length
+ED_FNCP  MOVE.B   (A2)+,(A1)+       ; copy next character
+         ADDQ.W   #1,D0             ; bump length counter
+         CMPI.B   #' ',(A2)         ; Space or EOL?
+         BLS.S    ED_ENDFN          ; Yes, end of name reached
+         CMPI.W   #44,D0            ; Allow for max 44 chars
+         BLT      ED_FNCP           ; Loop back
+;;         MOVE.W   D0,FILENAME(A6) ; ???
          ERRMSG   {'Filename too long - any key to continue '}
          MOVEQ    #ERR.BN,D0
          BRA      ED_L_ERR
-ED_ENDFN MOVE.W   D0,FILENAME(A6)
-         BRA      ED_FNLP
-ED_OPT   ADDQ.L   #1,A2
+ED_ENDFN MOVE.W   D0,FILENAME(A6)   ; Store length
+         BRA      ED_FNLP           ; Loop back for next
+ED_OPT   ADDQ.L   #1,A2             ; Option found - skip '-' or '/'
          MOVEQ    #0,D1
-         MOVE.B   (A2)+,D1
-         CMPI.B   #LF,D1
-         BEQ.S    ED_TSTFN
+         MOVE.B   (A2)+,D1          ; Get option letter
+         CMPI.B   #LF,D1            ; EOL?
+         BEQ.S    ED_TSTFN          ; Go processing filename
          LEA      UCASETBL,A1
-         MOVE.B   (A1,D1.W),D1
-         LEA      ED_OPTAB,A1
-ED_OPTLP MOVE.W   (A1)+,D2
-         BEQ      ED_FNLP
-         MOVE.W   (A1)+,D3
-         CMP.B    D1,D2
-         BNE      ED_OPTLP
-         TST.W    D2
+         MOVE.B   (A1,D1.W),D1      ; Convert to uppercase
+         LEA      ED_OPTAB,A1       ; Option table
+ED_OPTLP MOVE.W   (A1)+,D2          ; LSB = letter, MSB = type
+         BEQ      ED_FNLP           ; Null means end reached
+         MOVE.W   (A1)+,D3          ; Get variable offset
+         CMP.B    D1,D2             ; Option letters match?
+         BNE      ED_OPTLP          ; No, next table entry
+         TST.W    D2                ; A negative type means number follows
          BMI.S    ED_OPT2
-         ST       (A6,D3.W)
-         BRA      ED_FNLP
-ED_OPT2  EXG      A1,A2
+         ST       (A6,D3.W)         ; else, set variable
+         BRA      ED_FNLP           ; loop back
+ED_OPT2  EXG      A1,A2             ; A number follows
          BSR      READNUM
          EXG      A1,A2
          BTST     #8,D2
-         BEQ.S    ED_OPT3
-         TST.W    D1
+         BEQ.S    ED_OPT3           ; Type -2 allows any paramater
+         TST.W    D1                ; but -1 does not allow zero or negative
          BLE      ED_FNLP
-ED_OPT3  MOVE.W   D1,(A6,D3.W)
-         BRA      ED_FNLP
+ED_OPT3  MOVE.W   D1,(A6,D3.W)      ; Enter parameter value
+         BRA      ED_FNLP           ; Loop for next
 
-ED_TSTFN TST.W    FILENAME(A6)
-         BNE      OP_WRKFL
-         MOVE.L   GUARDWIN(A6),A0
+ED_TSTFN TST.W    FILENAME(A6)      ; Do we have a file name?
+         BNE      OP_WRKFL          ; Yes
+         MOVE.L   GUARDWIN(A6),A0   ; else, ask for it
          PRINT    {LF,LF,'File name: '}
          MOVEQ    #0,D1
          MOVEQ    #44,D2
@@ -394,7 +396,7 @@ ED_ABORT MOVEQ    #ERR.NC,D0
          RTS
 ED_CONTN SUBA.W   D1,A1
          MOVE.W   D1,-(A1)
-         TST.W    WORKSPC(A6)
+         TST.W    WORKSPC(A6)       ; Ask for workspace if needed
          BNE.S    OP_WRKFL
 GET_WRK  PRINT    {LF,'Workspace size (ENTER for default): '}
          MOVEQ    #0,D1
@@ -424,20 +426,23 @@ GETWRK1  MOVEQ    #-1,D2
 GETWRK2  MOVE.L   A0,TXTBASE(A6)
          LEA      -$10(A0,D1.L),A0
          MOVE.L   A0,TXTMAX(A6)
+
+; Open work file
+
 OP_WRKFL LEA      FILENAME(A6),A0
-         MOVEQ    #1,D3
+         MOVEQ    #1,D3             ; existing file
          BSR      OPEN_DEF
-         TST.L    TXTBASE(A6)
-         BNE.S    RD_WRKFL
-         MOVEM.L  D0/A0,-(A7)
-         TST.L    D0
-         IF EQ THEN
+         TST.L    TXTBASE(A6)       ; Workspace already allocated?
+         BNE.S    RD_WRKFL          ; Yes
+         MOVEM.L  D0/A0,-(A7)       ; else, allocate it
+         TST.L    D0                ; could we open the file?
+         IF EQ THEN                 ; yes, read length
             MOVEQ    #4,D2
             MOVEQ    #-1,D3
             CLR.L    -(A7)
             MOVE.L   A7,A1
             QDOS     FS.HEADR
-            MOVE.L   (A7)+,D1
+            MOVE.L   (A7)+,D1       ; file length
             MOVEQ    #0,D0
             MOVE.W   WORKSPOV(A6),D0
             IF EQ THEN
@@ -445,8 +450,8 @@ OP_WRKFL LEA      FILENAME(A6),A0
             ENDIF
             SWAP     D0
             LSR.L    #6,D0
-            ADD.L    D0,D1
-         ELSE
+            ADD.L    D0,D1          ; add overhead
+         ELSE                       ; file not found, use default workspace
             MOVEQ    #0,D1
             MOVE.W   WORKSPC(A6),D1
             IF EQ THEN
@@ -461,17 +466,17 @@ OP_WRKFL LEA      FILENAME(A6),A0
          BEQ.S    SETWRKSP
          ERRMSG   {'No room for workspace'}
          MOVEM.L  (A7)+,D0/A0
-         MOVE.L   #ERR.OM,-(A7)
+         MOVE.L   #ERR.OM,-(A7)     ; signal 'out of memory'
          TST.L    D0
          BEQ      RDW_CLOS
          BRA      ED_L_ERR
-SETWRKSP MOVE.L   A0,TXTBASE(A6)
-         LEA      -$10(A0,D1.L),A0
-         MOVE.L   A0,TXTMAX(A6)
+SETWRKSP MOVE.L   A0,TXTBASE(A6)    ; set base of workspace
+         LEA      -$10(A0,D1.L),A0  ; allow for 16 bytes spare
+         MOVE.L   A0,TXTMAX(A6)     ; End of workspace
          MOVEM.L  (A7)+,D0/A0
-RD_WRKFL TST.L    D0
-         BNE      NEW_WRKF
-         MOVE.L   A0,-(A7)
+RD_WRKFL TST.L    D0                ; Existing file?
+         BNE      NEW_WRKF          ; No
+         MOVE.L   A0,-(A7)          ; else, load it
          ERRMSG   {'Reading '}
          MOVE.L   CMDWIN(A6),A0
          LEA      FILENAME(A6),A1
@@ -479,8 +484,8 @@ RD_WRKFL TST.L    D0
          JSR      (A2)
          SF       MSGPRNTD(A6)
          MOVE.L   (A7)+,A0
-         TST.B    COOKED(A6)
-         BNE.S    ED_COOKD
+         TST.B    COOKED(A6)        ; Cooked flag?
+         BNE.S    ED_COOKD          ; Yes
          MOVEQ    #4,D2
          MOVEQ    #-1,D3
          CLR.L    -(A7)
@@ -549,7 +554,7 @@ GETLNTBL LEA      BLKSTART(A6),A1
          MOVEQ    #0,D0
          RTS
 
-* Read a file in "Cooked" mode
+* Read a file in "Cooked" mode (consider TABs and CR/LF)
 
 RD_COOKD MOVE.L   TXTBASE(A6),A1
          MOVE.L   A1,TXTEND(A6)
@@ -863,6 +868,8 @@ KEYTBL   DC.W     K_TAB
          DC.W     CH_TABEX-*
          DC.W     K_F5
          DC.W     REFILL-*
+         DC.W     K_SHF5
+         DC.W     CH_TABCP-*
          DC.W     $FD               Shift-TAB
          DC.W     SH_TAB-*
          DC.W     0
@@ -1345,8 +1352,8 @@ REFILL   MOVE.B   BORD_PRM,D1
          MOVE.L   GUARDWIN(A6),A0
          QDOS     SD.BORDR
          BSR      NEXT_ENV
-         BSR      DSP_PAGE
-RES_STAT SF       STPRINTD(A6)
+RES_STAT BSR      DSP_PAGE
+         SF       STPRINTD(A6)
          RTS
 
 HELP     ERRMSG   {'Loading HELP file...'}

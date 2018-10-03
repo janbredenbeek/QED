@@ -17,14 +17,19 @@ CTRL  ¾ ¿ Search backward/forward
 
 Single-key commands
 -------------------
-TAB      Tabulate
-ESC      Undo changes on current line
-F1       Help
-F2       Re-execute last command line
-F3       Enter command line
-SHIFT F3 Edit last command line
-F4       Change Insert/Overwrite mode
-F5       Edit next file / Redraw screen
+TAB        Tabulate
+SHIFT TAB  Back tab
+ESC        Undo changes on current line
+F1         Help
+F2         Re-execute last command line
+F3         Enter command line
+F8 (sh-F3) Edit last command line
+F4         Change Insert/Overwrite mode
+F5         Edit next file / Redraw screen
+F6 (sh-F1) Toggle AutoIndent mode
+F7 (sh-F2) Toggle WordWrap mode
+F9 (sh-F4) Toggle TAB expansion
+F10(sh-F5) Toggle TAB compression
 
 Extended commands
 -----------------
@@ -56,6 +61,7 @@ PW      Move to previous word
 Q       Quit editor without saving text
 QF      Quit current file
 R/s/    Edit file <s>, keeping current file(s)
+RC/s/   Edit file <s> in cooked mode
 RP      Repeat until error
 RT      Return to last line (max. 3x)
 S       Split line at cursor

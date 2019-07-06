@@ -60,6 +60,7 @@ ARROWCMD DC.B     0                 (48) Default arrow command
 HELPFNAM STRING$  'win1_QED_HELP'   (50-97) Name of Help file
          DS.B     46-(*-HELPFNAM)   Allow for spare
 CONNAME  STRING$  'CON'             Name of CON device
+DEFWIN   DC.W     480,210,16,5      ; Default window size if configured fails
 
          XDEF     REPORT_P,REPORT_I,CMDLN_P,CMDLN_I
 
@@ -101,10 +102,11 @@ NO_REDIR MOVEQ    #-1,D1
          MOVE.B   BORD_PRM,D1       ; Border colour
          MOVEQ    #0,D2
          MOVE.B   BORD_PRM+1,D2     ; Border size
-         MOVEQ    #-1,D3
-         MOVE.L   A7,A1
-         MOVE.L   WINDEF+4,-(A7)    ; Window LHS x,y
-         MOVE.L   WINDEF,-(A7)      ; Window size
+         LEA      WINDEF,A2       ; Configured window size
+         SUBQ.W   #8,A7             ; Temp space for window parms
+WIN_AGN  MOVE.L   A7,A1
+         MOVE.L   (A2),(A1)+        ; Window LHS x,y
+         MOVE.L   4(A2),(A1)+       ; Window size
          MOVE.W   D2,D0             ; Border size
          SUB.W    D0,-(A1)          ; Discount border size from window LHS y
          ADD.W    D0,D0             ; Border width = 2 times size
@@ -112,15 +114,23 @@ NO_REDIR MOVEQ    #-1,D1
          ADD.W    D0,-(A1)          ; Add border height * 2 to window height
          ADD.W    D0,D0             ; Double again to get total border width
          ADD.W    D0,-(A1)          ; And add this to window width
+         MOVEQ    #-1,D3
          QDOS     SD.WDEF           ; Now define guardian window size & pos
-         MOVE.L   D0,D3             ; NEW: test for error
-         BNE      EXIT_ERR
-         LEA      BORD_PRM+2,A2
-         MOVE.B   (A2),D1           ; Get paper colour for guardian window
+         TST.L    D0                ; test for error
+         BEQ.S    SET_BORD          ; if OK, continue
+         MOVE.L   D0,D3             ; error code to D3
+         CMPI.L   #ERR.OR,D3        ; 'Out of range'?
+         BNE      EXIT_ERR          ; Exit if other error
+         MOVEQ    #4,D1             ; Use default green border
+         MOVEQ    #1,D2             ; ... with a width of 1 pixel
+         LEA      DEFWIN,A2         ; Default window which WILL fit in 512x256
+         BRA      WIN_AGN           ; ... and try again
+
+SET_BORD MOVE.B   BORD_PRM+2,D1     ; Get paper colour for guardian window
          QDOS     SD.SETPA
-         MOVE.B   (A2)+,D1          ; Again for strip colour
+         MOVE.B   BORD_PRM+3,D1     ; Again for strip colour
          QDOS     SD.SETST
-         MOVE.B   (A2),D1           ; And ink colour
+         MOVE.B   BORD_PRM+3,D1     ; And ink colour
          QDOS     SD.SETIN
 
 ; Now open main editing window         
@@ -132,8 +142,8 @@ NO_REDIR MOVEQ    #-1,D1
          MOVE.L   D0,D3
          BNE      EXIT_ERR
          MOVE.L   A0,TXTWIN(A6)     ; channel ID
-         MOVE.L   WINDEF,(A7)       ; copy definition from guardian window parms
-         MOVE.L   WINDEF+4,4(A7)
+         MOVE.L   (A2),(A7)         ; copy definition from guardian window parms
+         MOVE.L   4(A2),4(A7)
          SUBI.W   #10,2(A7)         ; but subtract 10 to allow for command/status line
          MOVEQ    #0,D1
          MOVEQ    #0,D2

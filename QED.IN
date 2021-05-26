@@ -5,15 +5,16 @@
 * Release 2.00beta: September 1994
 * Release 2.01: 25 September 2018
 * Release 2.02: 03 October 2018
+* Release 2.03  : 26 May 2021
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
-* This should be assembled and linked using the GST Macro Assembler and Linker
+* This should be assembled and linked using the QMAC Macro Assembler and Linker
 * (see http://www.dilwyn.me.uk/asm/index.html)
 *
 * QED DEFINITIONS
 *
 
-version  SETSTR   2.02
+version  SETSTR   2.03
 
 * Macro for calling ERRMSG
 
@@ -63,7 +64,7 @@ TXTWIN   DS.L     1        ID of text window
 CMDWIN   DS.L     1        ID of command/error message window
 ERR_SP   DS.L     1        Top of user stack
 ENVSAV   DS.L     1        Pointer to file environment save area
-REDIR    DS.B     1        !0 if windows redirected
+REDIR    DS.B     1        !0 if input file redirected
          DS.W     0
 CMDBUF   DS.B     256      Command line
 
@@ -95,8 +96,8 @@ OVERWMOD DS.B     1        Mode: 0 insert, <>0 overwrite
 COOKED   DS.B     1        Raw (0) or Cooked mode (!0)
 WORDWRAP DS.B     1        Wordwrap (!0) or not (0)
 AUTOINDT DS.B     1        Autoindent (!0) or not (0)
-TABEXPND DS.B     1
-TABCOMPR DS.B     1
+TABEXPND DS.B     1        TAB expansion (!0) or not (0)
+TABCOMPR DS.B     1        TAB compression (!0) or not (0)
 MSGPRNTD DS.B     1        Error message printed (<>0) or not (0)
 STPRINTD DS.B     1        Status printed (<>0) or not (0)
          DS.W     0        (Next areas must start at word boundary)

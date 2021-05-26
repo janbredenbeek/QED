@@ -5,6 +5,91 @@
     This textfile describes the changes introduced in QED v2, compared
     to v1.01.
 
+    v2.03 released 26 May 2021
+    ==========================
+
+    New features
+    ------------
+
+    - When QED's window was configured larger than the resolution of the
+      current environment's screen, QED refused to start and gave an 'out of
+      range' error. This has been changed so that QED now opens a window with
+      default size which will always fit into a 512x256 screen. You may use the
+      QEDCONFIG_BAS program to reconfigure QED's window to a suitable size.
+
+    - QEDCONFIG_BAS allows you to copy the settings from an older copy of QED
+      to a new one. Just enter the name of the old copy (e.g. QED_OLD if you
+      have renamed your old copy from QED to QED_OLD). When you have finished,
+      enter the name of the new copy to write the settings to or just ENTER to
+      save them to the same copy. Note that you can only copy the settings from
+      QED versions 2.00 and above.
+
+    - When a file is read in containing lines longer than the set right margin
+      (or 255 when Word Wrap is turned off), the lines will now be soft split 
+      at the last space or tab character (i.e. word wrapped). If you change the
+      right margin or wordwrap status and want the text to be reformatted, you
+      can now do so by using the new RF command. This will NOT change the text
+      by itself, so paragraphs will remain intact until you edit them.
+
+    - The following options may be specified on the command line or as argument
+      for the R or RC command when reading a file. Note that these options must
+      be separated from the filename by spaces, so when using them in a R or RC
+      command you MUST enclose the entire argument with a separator character.
+      E.g. 'RC/example_txt -W+/', not 'RC example_txt -W+'
+      - -Bn   : Set workspace buffer to n Kbytes
+      - -C    : Read file in Cooked mode (strip CR, compress or expand TABs)
+      - -E+/E-: Expand TABs in Cooked mode or not
+      - -In   : Set TAB increment to n (was -T in earlier versions)
+      - -On   : Set workspace Overhead to n Kbytes
+      - -T+/T-: Compress TABs in Cooked mode or not
+      - -W+/W-: Wordwrap on or off
+
+    Bug fixes
+    ---------
+
+    - When a file was read in using the RC (Read Cooked) command, QED failed to
+      close it after reading so it was impossible to save back.
+
+    - The SL, SR and ST commands (Set Left Margin, Right Margin and Tab 
+      distance respectively) now only accept values 255 or less, and the right
+      margin must be greater than the left margin.
+
+    - QED can now handle files larger than 1 MB without garbling them. Present
+      versions however still have a limit of 32767 lines per file.
+
+    - Fixed a bug where splitting a line (e.g. using ENTER) and then pressing 
+      ESC caused the second part of the line to be lost.
+
+    - Fixed a bug where splitting a line whilst the display was panned caused
+      the second part of the line to be displayed twice on two rows.
+
+    - When a workspace size was specified in the welcome screen, the optional
+      'K' for 'kilobytes' was ignored, hence no more than 32767 bytes could be
+      allocated. You can now specify up to 32767K again.
+
+    - Specifying a workspace size with the -B option had no effect when reading
+      an existing file. When you specify an explicit workspace size now using
+      -B<KB>, it will be allocated regardless of the length of the file. When
+      omitted, a workspace size of file length plus overhead will be allocated
+      as usual.
+
+    Known Issues
+    ------------
+
+    - Reading a file in cooked mode and with TAB expansion on (and TAB
+      compression off) may result in a 'File too large' error message.
+      This is because TABs are expanded into spaces, after which the file may
+      no longer fit into the workspace (calculated by taking the length of the
+      original file plus overhead).
+      Workaround: Specify a workspace overhead large enough to contain the file
+      after TAB expansion. You may either use the RC command with no argument
+      after which you can specify the file name and workspace size, or with an
+      argument containing the -o option, e.g. RC/example_txt -o50/ (note that
+      slashes are required since the argument contains a space).
+      Alternatively, you may load the file from S*BASIC using a command like 
+      EX QED;'example_txt -c -o50'.
+
+
     v2.02 released 03 October 2018
     ==============================
 

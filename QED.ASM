@@ -6,9 +6,10 @@
 * Release 2.00b2: January 2018
 * Release 2.01  : 25 September 2018
 * Release 2.02  : 03 October 2018
+* Release 2.03  : 26 May 2021
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
-* This should be assembled and linked using the GST Macro Assembler and Linker
+* This should be assembled and linked using the QMAC Macro Assembler and Linker
 * (see http://www.dilwyn.me.uk/asm/index.html)
 *
 * Main program part
@@ -30,15 +31,15 @@
          
          SECTION  CODE
 
-         BRA.S    ED_START
-         DC.L     0
+         BRA.L    ED_START          ; long branch now! (v2.03+)
+         DC.W     0                 ; NEW: config version (v2.03+)
          DC.W     $4AFB
          STRING$  {'QED'}
          DS.W     0                 Get the following data word aligned
          
 * Configuration data (modified by QEDCONFIG_BAS)
          
-WINDEF   DC.W     480,210,16,5      (14-21) Outline window
+WINDEF   DC.W     480,200,16,5      (14-21) Outline window
 DEFMARGN DC.W     0,79              (22-25) Default margins
 DFTABINC DC.W     9                 (26-27) Default TAB increment
 DEFWRKSP DC.W     12                (28-29) Default workspace size (KB)
@@ -60,9 +61,12 @@ ARROWCMD DC.B     0                 (48) Default arrow command
 HELPFNAM STRING$  'win1_QED_HELP'   (50-97) Name of Help file
          DS.B     46-(*-HELPFNAM)   Allow for spare
 CONNAME  STRING$  'CON'             Name of CON device
-DEFWIN   DC.W     480,210,16,5      ; Default window size if configured fails
+DEFWIN   DC.W     480,200,16,5      ; Default window size if configured fails
 
          XDEF     REPORT_P,REPORT_I,CMDLN_P,CMDLN_I
+
+* Skip spaces on command line
+* D0: remaining length, A0 ptr to current character
 
 SKIPCMD  TST.W    D0
          BLE.S    SK_END
@@ -128,7 +132,7 @@ WIN_AGN  MOVE.L   A7,A1
 
 SET_BORD MOVE.B   BORD_PRM+2,D1     ; Get paper colour for guardian window
          QDOS     SD.SETPA
-         MOVE.B   BORD_PRM+3,D1     ; Again for strip colour
+         MOVE.B   BORD_PRM+2,D1     ; Again for strip colour
          QDOS     SD.SETST
          MOVE.B   BORD_PRM+3,D1     ; And ink colour
          QDOS     SD.SETIN
@@ -195,7 +199,7 @@ SET_BORD MOVE.B   BORD_PRM+2,D1     ; Get paper colour for guardian window
          
 ED_CMDLN CLR.L    ENVSAV(A6)        ; Pointer to saved file environment
          CLR.L    NEXTFILE(A6)      ; Pointer to next file in file list
-         MOVE.L   DEFMARGN,LEFTMAR(A6)  ; left margin
+         MOVE.L   DEFMARGN,LEFTMAR(A6)  ; left margin AND right margin
          MOVE.W   DFTABINC,TABINC(A6)   ; TAB distance
          MOVE.B   DFOVRMOD,OVERWMOD(A6) ; Overwrite mode (-1) or not (0)
          MOVE.B   DEFWRAP,WORDWRAP(A6)  ; Word wrap (-1) or not (0)
@@ -246,42 +250,43 @@ ED_CMDOP MOVE.B   (A0),(A1)+        ; Copy into cmdbuf
 ED_FORK  ST       D2
          MOVE.B   #LF,(A1)+         ; Terminate command line
          MOVEM.L  D0/D2/A0,-(A7)
-         BSR      ED_LOAD
-         TST.L    D0
-         BEQ.S    ED_FORK2
+         BSR      ED_LOAD           ; Load file
+         TST.L    D0                ; Loaded one?
+         BEQ.S    ED_FORK2          ; yes, fork environment
          MOVEM.L  (A7)+,D0/D2/A0
-         BRA      ED_NFILE
-ED_FORK2 BSR.S    FORK
-         MOVE.L   D0,D3
+         BRA      ED_NFILE          ; else look for next file
+
+ED_FORK2 BSR.S    FORK              ; fork environment
+         MOVE.L   D0,D3             ; test error status
          MOVEM.L  (A7)+,D0/D2/A0
-         BEQ      ED_NFILE
-EXIT_ERR MOVEQ    #-1,D1
+         BEQ      ED_NFILE          ; if OK, loop back for next file
+EXIT_ERR MOVEQ    #-1,D1            ; error exit
          QDOS     MT.FRJOB
 
-ED_CMDEN MOVE.B   #LF,(A1)+
-         BSR      ED_LOAD
+ED_CMDEN MOVE.B   #LF,(A1)+         ; end of command line reached, terminate
+         BSR      ED_LOAD           ; load last file
          MOVE.L   D0,D3
-         BEQ.S    ED_DSP
-         TST.L    NEXTFILE(A6)
-         BEQ      EXIT_ERR
-ED_DSP   BSR      NEXT_ENV
-         BSR      DSP_PAGE
-         BRA      MAINLOOP
+         BEQ.S    ED_DSP            ; if OK, display it
+         TST.L    NEXTFILE(A6)      ; do we have other files?
+         BEQ      EXIT_ERR          ; if not, error exit
+ED_DSP   BSR      NEXT_ENV          ; switch to next file
+         BSR      DSP_PAGE          ; display it
+         BRA      MAINLOOP          ; jump to main loop
 
 * Fork off another file
 
          XDEF     FORK
 
-FORK     BSR.S    SAV_ENV           Save current file environment
+FORK     BSR.S    SAV_ENV           ; Save current file environment
          BNE.S    F_NOMEM
-         MOVE.L   ENVSAV(A6),A2     Get ptr to save area
+         MOVE.L   ENVSAV(A6),A2     ; Get ptr to save area
          CLR.L    ENVSAV(A6)
          TST.L    NEXTFILE(A6)
          BNE.S    FORK_2
-         MOVE.L   A2,NEXTFILE(A6)   If no next file, make current file next
-FORK_2   BSR.S    SAV_ENV           Create save area for next file
+         MOVE.L   A2,NEXTFILE(A6)   ; If no next file, make current file next
+FORK_2   BSR.S    SAV_ENV           ; Create save area for next file
          BNE.S    F_NOMEM2
-         MOVE.L   ENVSAV(A6),(A2)   And make next file "next" after current
+         MOVE.L   ENVSAV(A6),(A2)   ; And make next file "next" after current
          MOVEQ    #0,D0
          RTS
 F_NOMEM2 MOVE.L   A2,ENVSAV(A6)
@@ -293,37 +298,52 @@ F_NOMEM  TST.L    D0
          XDEF     SAV_ENV
 
 SAV_ENV  MOVE.L   ENVSAV(A6),A0
-         MOVE.L   A0,D0
-         BNE.S    SE_2
-         MOVE.L   #ENV_END-NEXTFILE+27,D1
+         MOVE.L   A0,D0             ; do we already have a save area?
+         BNE.S    SE_2              ; yes, copy environment
+         MOVE.L   #ENV_END-NEXTFILE+27,D1 ; allow for registers too
          MOVEQ    #-1,D2
          MOVEM.L  A2/A3,-(A7)
-         QDOS     MT.ALCHP
+         QDOS     MT.ALCHP          ; allocate space for save area
          MOVEM.L  (A7)+,A2/A3
          TST.L    D0
          BNE.S    SE_END
-         MOVE.L   A0,ENVSAV(A6)
+         MOVE.L   A0,ENVSAV(A6)     ; store pointer
 SE_2     MOVE.L   #ENV_END-NEXTFILE,D0
          LEA      NEXTFILE(A6),A1
-SE_SAV   MOVE.L   (A1)+,(A0)+
+SE_SAV   MOVE.L   (A1)+,(A0)+       ; copy environment to save area
          SUBQ.L   #4,D0
          BGT      SE_SAV
-         MOVEM.L  D4-D7/A4-A5,(A0)
+         MOVEM.L  D4-D7/A4-A5,(A0)  ; save registers too (24 bytes)
          MOVEQ    #0,D0
 SE_END   RTS
 
 * Commandline option table
+* For each option:
+*   - First byte: 0 no parameter, -1 nonzero parameter, -2 numeric parameter
+*   - Second byte: option letter
+*   - Third and fourth byte: variable offset to set
 
-ED_OPTAB DC.B     -2,'@'            Start at line n
-         DC.W     STARTLN
-         DC.B     -2,'B'            Workspace in KB
+ED_OPTAB 
+;        DC.B     -2,'@'            ; Start at line n
+;        DC.W     STARTLN
+         DC.B     -2,'B'            ; Workspace in KB
          DC.W     WORKSPC
-         DC.B     0,'C'             Cooked mode
+         DC.B     0,'C'             ; Cooked mode
          DC.W     COOKED
-         DC.B     -2,'O'            Workspace overhead
-         DC.W     WORKSPOV
-         DC.B     -1,'T'            TAB increment
+         DC.B     0,'E'             ; TAB expansion
+         DC.W     TABEXPND
+         DC.B     -1,'I'            ; TAB increment (changed!)
          DC.W     TABINC
+         DC.B     -2,'O'            ; Workspace overhead
+         DC.W     WORKSPOV
+;         DC.B     -1,'L'            ; Left margin
+;         DC.W     LEFTMAR
+;         DC.B     -1,'R'            ; Right margin
+;         DC.W     RIGHTMAR
+         DC.B     0,'T'             ; TAB compression (changed!)
+         DC.W     TABCOMPR
+         DC.B     0,'W'
+         DC.W     WORDWRAP
          DC.W     0
 
 * Load a complete file
@@ -375,7 +395,11 @@ ED_OPTLP MOVE.W   (A1)+,D2          ; LSB = letter, MSB = type
          BNE      ED_OPTLP          ; No, next table entry
          TST.W    D2                ; A negative type means number follows
          BMI.S    ED_OPT2
-         ST       (A6,D3.W)         ; else, set variable
+         CMPI.B   #'-',(A2)
+         SNE      (A6,D3.W)         ; else, (re)set variable
+         CMPI.B   #' ',(A2)         ; space or EOL after?
+         BLS      ED_FNLP           ; yes, loop back (treat as +)
+         ADDQ.L   #1,A2             ; else, skip it
          BRA      ED_FNLP           ; loop back
 ED_OPT2  EXG      A1,A2             ; A number follows
          BSR      READNUM
@@ -426,7 +450,12 @@ GET_WRK  PRINT    {LF,'Workspace size (ENTER for default): '}
          BGT.S    GETWRK1
          PRINT    {'Invalid number'}
          BRA      GET_WRK
-GETWRK1  MOVEQ    #-1,D2
+GETWRK1  CMPI.B   #'K',(A1)
+         BEQ.S    GETWRK_K
+         CMPI.B   #'k',(A1)
+         BNE.S    GETWRK_A
+GETWRK_K MULU     #1024,D1
+GETWRK_A MOVEQ    #-1,D2
          QDOS     MT.ALCHP
          TST.L    D0
          BEQ.S    GETWRK2
@@ -441,49 +470,46 @@ GETWRK2  MOVE.L   A0,TXTBASE(A6)
 
 OP_WRKFL LEA      FILENAME(A6),A0
          MOVEQ    #1,D3             ; existing file
-         BSR      OPEN_DEF
+         BSR      OPEN_DEF          ; try opening it
          TST.L    TXTBASE(A6)       ; Workspace already allocated?
          BNE.S    RD_WRKFL          ; Yes
          MOVEM.L  D0/A0,-(A7)       ; else, allocate it
+         TST.W    WORKSPC(A6)       ; Explicit workspace size specified?
+         BNE.S    OP_DEFLT          ; yes, skip
          TST.L    D0                ; could we open the file?
-         IF EQ THEN                 ; yes, read length
-            MOVEQ    #4,D2
-            MOVEQ    #-1,D3
-            CLR.L    -(A7)
-            MOVE.L   A7,A1
-            QDOS     FS.HEADR
-            MOVE.L   (A7)+,D1       ; file length
-            MOVEQ    #0,D0
-            MOVE.W   WORKSPOV(A6),D0
-            IF EQ THEN
-               MOVE.W   DEFWRKOV,D0
-            ENDIF
-            SWAP     D0
-            LSR.L    #6,D0
-            ADD.L    D0,D1          ; add overhead
-         ELSE                       ; file not found, use default workspace
-            MOVEQ    #0,D1
-            MOVE.W   WORKSPC(A6),D1
-            IF EQ THEN
-               MOVE.W   DEFWRKSP,D1
-            ENDIF
-            SWAP     D1
-            LSR.L    #6,D1
+         BNE.S    OP_DEFLT          ; no, use specified or default
+         MOVEQ    #4,D2
+         MOVEQ    #-1,D3
+         CLR.L    -(A7)
+         MOVE.L   A7,A1
+         QDOS     FS.HEADR
+         MOVE.L   (A7)+,D1          ; file length
+         MOVE.W   WORKSPOV(A6),D0   ; specified workspace overhead
+         IF EQ THEN
+            MOVE.W   DEFWRKOV,D0    ; or take default
          ENDIF
-         MOVEQ    #-1,D2
+         MULU     #1024,D0          ; convert to KB
+         ADD.L    D0,D1             ; add overhead
+         BRA.S    OP_ALLOC
+OP_DEFLT MOVE.W   WORKSPC(A6),D1    ; specified workspace (-Bn)
+         IF EQ THEN
+            MOVE.W   DEFWRKSP,D1    ; or take default
+         ENDIF
+         MULU     #1024,D1          ; convert to KB
+OP_ALLOC MOVEQ    #-1,D2
          QDOS     MT.ALCHP
          TST.L    D0
          BEQ.S    SETWRKSP
          ERRMSG   {'No room for workspace'}
          MOVEM.L  (A7)+,D0/A0
          MOVE.L   #ERR.OM,-(A7)     ; signal 'out of memory'
-         TST.L    D0
-         BEQ      RDW_CLOS
-         BRA      ED_L_ERR
+         TST.L    D0                ; file open successful?
+         BEQ      RDW_CLOS          ; yes, close it again
+         BRA      ED_L_ERR          ; exit
 SETWRKSP MOVE.L   A0,TXTBASE(A6)    ; set base of workspace
          LEA      -$10(A0,D1.L),A0  ; allow for 16 bytes spare
          MOVE.L   A0,TXTMAX(A6)     ; End of workspace
-         MOVEM.L  (A7)+,D0/A0
+         MOVEM.L  (A7)+,D0/A0       ; restore file open status
 RD_WRKFL TST.L    D0                ; Existing file?
          BNE      NEW_WRKF          ; No
          MOVE.L   A0,-(A7)          ; else, load it
@@ -499,38 +525,41 @@ RD_WRKFL TST.L    D0                ; Existing file?
          MOVEQ    #4,D2
          MOVEQ    #-1,D3
          CLR.L    -(A7)
-         MOVE.L   A7,A1
+         MOVE.L   A7,A1             ; Read first 4 bytes of header
          QDOS     FS.HEADR
-         MOVE.L   (A7)+,D2
+         MOVE.L   (A7)+,D2          ; must be length of file
          TST.L    D0
-         BNE.S    RDW_FERR
+         BNE.S    RDW_FERR          ; but exit with errors
          MOVE.L   TXTBASE(A6),A1
          LEA      (A1,D2.L),A2
-         CMPA.L   TXTMAX(A6),A2
-         BHI.S    RDW_BF
-         MOVE.L   A2,TXTEND(A6)
-         QDOS     FS.LOAD
-         TST.L    D0
-         BNE.S    RDW_FERR
-         QDOS     IO.CLOSE
-         BRA.S    GETLNTBL
-ED_COOKD BSR      RD_COOKD
-         TST.L    D0
-         BEQ.S    GETLNTBL
-         CMPI.L   #ERR.BO,D0
-         BEQ.S    RDW_BF
-RDW_FERR MOVE.L   D0,-(A7)
+         CMPA.L   TXTMAX(A6),A2     ; does it fit into the buffer?
+         BHI.S    RDW_BF            ; no, bail out
+         MOVE.L   A2,TXTEND(A6)     ; set TXTEND
+         QDOS     FS.LOAD           ; and load the whole file
+         TST.L    D0                ; error?
+         BNE.S    RDW_FERR          ; yes, report and close
+         BRA.S    RDW_OK            ; else close and build line table
+
+ED_COOKD BSR      RD_COOKD          ; read cooked (CR/LF, TAB handling etc)
+         CMPI.L   #ERR.BO,D0        ; buffer overflow?
+         BEQ.S    RDW_BF            ; yes, report
+         TST.L    D0                ; other I/O error?
+         BNE.S    RDW_FERR          ; yes, report it
+RDW_OK   QDOS     IO.CLOSE          ; FIX: close after cooked read!
+         BRA.S    GETLNTBL          ; go building line table
+
+RDW_FERR MOVE.L   D0,-(A7)          ; generic file I/O error
          ERRMSG   {'File I/O error'}
          BRA.S    RDW_CLOS
-RDW_BF   MOVE.L   #ERR.BO,-(A7)
+RDW_BF   MOVE.L   #ERR.BO,-(A7)     ; file too large for buffer
          ERRMSG   {'File too large'}
 RDW_CLOS QDOS     IO.CLOSE
 ED_L_ERR MOVE.L   TXTBASE(A6),A0
-         MOVE.L   A0,D0
+         MOVE.L   A0,D0             ; reclaim any buffer space
          IF NE THEN
             QDOS     MT.RECHP
          ENDIF
-         MOVE.L   CMDWIN(A6),A0
+         MOVE.L   CMDWIN(A6),A0     ; wait for a key and return
          PRINT    {' - press any key '}
          MOVEQ    #-1,D3
          QDOS     SD.CURE
@@ -538,6 +567,7 @@ ED_L_ERR MOVE.L   TXTBASE(A6),A0
          QDOS     SD.CURS
          MOVE.L   (A7)+,D0
          RTS
+
 NEW_WRKF ERRMSG   {'Creating new file '}
          MOVE.L   CMDWIN(A6),A0
          LEA      FILENAME(A6),A1
@@ -551,7 +581,7 @@ GETLNTBL LEA      BLKSTART(A6),A1
          SF       EDIT_LN(A6)
          SF       EDIT_TXT(A6)
          CLR.W    FINDSTR(A6)       MAKE FIND STRING NULL
-         BSR      MK_LNTBL
+         BSR      MK_LNTBL          ; build line table
          MOVEQ    #-1,D3
          MOVE.L   TXTWIN(A6),A0
          MOVEQ    #0,D4             X POS ON WINDOW
@@ -559,7 +589,7 @@ GETLNTBL LEA      BLKSTART(A6),A1
          MOVEQ    #0,D6             COLUMN
          MOVEQ    #0,D7             LINE
          LEA      LINEBUF(A6),A3
-         MOVE.L   TXTBASE(A6),A4
+         MOVE.L   TXTBASE(A6),A4    ; A4 points to text
          MOVE.B   #LF,CMDBUF(A6)
          MOVEQ    #0,D0
          RTS
@@ -567,62 +597,82 @@ GETLNTBL LEA      BLKSTART(A6),A1
 * Read a file in "Cooked" mode (consider TABs and CR/LF)
 
 RD_COOKD MOVE.L   TXTBASE(A6),A1
-         MOVE.L   A1,TXTEND(A6)
+         MOVE.L   A1,TXTEND(A6)     ; Collapse text buffer
          MOVEQ    #-1,D3
-RDC_LOOP TST.B    TABCOMPR(A6)
-         BNE.S    RDC_DIR
-         TST.B    TABEXPND(A6)
-         BNE.S    RDC_EXP
+RDC_LOOP TST.B    TABCOMPR(A6)      ; TAB compression on?
+         BNE.S    RDC_DIR           ; yes, go ahead
+         TST.B    TABEXPND(A6)      ; TAB expansion on?
+         BNE.S    RDC_EXP           ; yes, skip to next section
 RDC_DIR  MOVE.L   TXTMAX(A6),D2
-         SUB.L    A1,D2
-         BLS      RDC_BO
+         SUB.L    A1,D2             ; Check available space
+         BLS      RDC_BO            ; out of space
          CMPI.L   #$7FFF,D2
          BLS.S    RDC_DIR2
-         MOVE.L   #$7FFF,D2
-RDC_DIR2 QDOS     IO.FLINE
-         TST.L    D0
-         BNE.S    RDC_END
-         SUBA.W   D1,A1
-         SUBQ.W   #1,D1
-         BLE.S    RDC_DIRN
-         CMPI.B   #CR,-1(A1,D1.W)
-         BNE.S    RDC_COMP
-         SUBQ.W   #1,D1
-RDC_COMP BSR      CMPTABS
-RDC_DIRN ADDA.W   D1,A1
-         MOVE.B   #LF,(A1)+
-         MOVE.L   A1,TXTEND(A6)
-         BRA      RDC_DIR
-RDC_EXP  MOVE.L   A1,A3
-RDC_EXPL LEA      LINEBUF(A6),A1
+         MOVE.L   #$7FFF,D2         ; read at most 32767 bytes at a time
+RDC_DIR2 QDOS     IO.FLINE          ; read in next line (LF terminated)
+         TST.L    D0                ; OK?
+         BEQ.S    RDC_DIR3          ; Yes, skip
+         CMPI.L   #ERR.EF,D0        ; test for EOF
+         BNE      RDC_END           ; exit with other errors
+         TST.W    D1                ; zero length?
+         BEQ      RDC_END           ; yes, real EOF
+         MOVE.B   #LF,(A1)+         ; last line had no EOL, correct this!
+         ADDQ.W   #1,D1
+RDC_DIR3 SUBA.W   D1,A1             ; go back to start
+         SUBQ.W   #1,D1             ; only LF?
+         BLE.S    RDC_DIRN          ; yes, skip
+         CMPI.B   #CR,-1(A1,D1.W)   ; CR before LF?
+         BNE.S    RDC_COMP          ; no
+         SUBQ.W   #1,D1             ; discount any CR at end
+RDC_COMP BSR      CMPTABS           ; compress any tabs
+RDC_DIRN ADDA.W   D1,A1             ; go to new EOL
+         MOVE.B   #LF,(A1)+         ; ensure line end has LF
+         MOVE.L   A1,TXTEND(A6)     ; set new TXTEND
+         BRA      RDC_DIR           ; loop back
+
+; no TAB compression but TAB expansion
+; this section reads in via LINEBUF, may need some optimisations later
+
+RDC_EXP  MOVE.L   A1,A3             ; save current pointer
+RDC_EXPL LEA      LINEBUF(A6),A1    ; read line in LINEBUF
          MOVE.W   #255,D2
          MOVEQ    #-1,D3
-         QDOS     IO.FLINE
-         CMPI.L   #ERR.BO,D0
-         BEQ.S    RDC_EXP3
-         TST.L    D0
-         BNE.S    RDC_END
-RDC_EXP2 CMPI.W   #1,D1
-         BLE.S    RDC_EXP3
-         CMPI.B   #CR,-2(A1)
-         BNE.S    RDC_EXP3
-         MOVE.B   -(A1),-1(A1)
-         SUBQ.W   #1,D1
-RDC_EXP3 MOVE.L   A1,D2
-         SUBA.W   D1,A1
+         QDOS     IO.FLINE          ; get next line
+         TST.L    D0                ; OK?
+         BEQ.S    RDC_EXP2          ; yes, process line
+         CMPI.L   #ERR.BO,D0        ; buffer overflow?
+         BEQ.S    RDC_EXP3          ; yes, process but no CR check
+         CMPI.L   #ERR.EF,D0        ; EOF?
+         BNE.S    RDC_END           ; no, other error
+         TST.W    D1                ; any bytes read?
+         BEQ.S    RDC_END           ; no, real EOF
+         MOVE.B   #LF,(A1)+         ; last line had no EOL, correct this
+         ADDQ.W   #1,D1
+RDC_EXP2 CMPI.W   #1,D1             ; discount EOL
+         BLE.S    RDC_EXP3          ; skip with empty line
+         CMPI.B   #CR,-2(A1)        ; does it have a CR before LF?
+         BNE.S    RDC_EXP3          ; no, skip
+         MOVE.B   -(A1),-1(A1)      ; else move the LF down
+         SUBQ.W   #1,D1             ; and discount the CR
+RDC_EXP3 MOVE.L   A1,D2             ; end of line in LINEBUF
+         SUBA.W   D1,A1             ; go back to the start
          MOVE.L   TXTMAX(A6),D3
-         SUB.L    A3,D3
-         BLE.S    RDC_BO
-         BSR      CL_COPY
-         SUB.L    A1,D2
-         BNE.S    RDC_BO
-         MOVE.L   A3,TXTEND(A6)
-         BRA      RDC_EXPL
-RDC_BO   MOVEQ    #ERR.BO,D0
-RDC_END  CMPI.L   #ERR.EF,D0
-         BNE.S    RDC_RTS
-         MOVEQ    #0,D0
+         SUB.L    A3,D3             ; enough space left?
+         BLE.S    RDC_BO            ; no, bail out
+         BSR      CL_COPY           ; copy line to text buffer
+         SUB.L    A1,D2             ; reached the end of LINEBUF?
+         BNE.S    RDC_BO            ; no, line is too long
+         MOVE.L   A3,TXTEND(A6)     ; set new TXTEND
+         BRA      RDC_EXPL          ; and loop back
+RDC_BO   MOVEQ    #ERR.BO,D0        ; buffer full error
+RDC_END  CMPI.L   #ERR.EF,D0        ; check for EOF
+         BNE.S    RDC_RTS           ; exit with other errors
+         MOVEQ    #0,D0             ; cancel EOF, is not an error
 RDC_RTS  RTS
+
+*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+* Print a message at the centre of the screen (used for signon)
+*--------------------------------------------------------------
 
 P_MIDDLE MOVE.W   (A1)+,D2
          BEQ.S    PM_END
@@ -651,58 +701,63 @@ SIGNON1  STRING$  {'QED'}
          DC.W     0
 SIGNON2  STRING$  {'QL Text Editor'}
          STRING$  {'Version [version]'}
-         STRING$  {'Copyright  1988-2018 by Jan Bredenbeek'}
+         STRING$  {'Copyright  1988-2021 by Jan Bredenbeek'}
          DC.W     0
          SECTION  CODE
 
+*++++++++++++++++++++
+* Main execution loop
+*--------------------
+
          XDEF     MAIN_ERR
 
-MAIN_ERR MOVE.L   ERR_SP(A6),A7
+MAIN_ERR MOVE.L   ERR_SP(A6),A7     ; error return, reset SP
 MAINLOOP MOVE.L   TXTWIN(A6),A0
-         MOVE.W   D4,D1
-         MOVE.W   D5,D2
+         MOVE.W   D4,D1             ; D4 holds column in window
+         MOVE.W   D5,D2             ; D5 holds row in window
          MOVEQ    #-1,D3
-         QDOS     SD.POS
-         TST.B    MSGPRNTD(A6)
+         QDOS     SD.POS            ; set cursor position
+         TST.B    MSGPRNTD(A6)      ; any message printed in status window?
          IF EQ THEN
-            BSR      DISPSTAT
+            BSR      DISPSTAT       ; if not, display regular status
          ENDIF
          MOVEQ    #0,D3
-         QDOS     IO.PEND
+         QDOS     IO.PEND           ; any character pending in input?
          MOVEQ    #-1,D3
          TST.L    D0
-         BEQ.S    MAIN_KEY
-         QDOS     SD.CURE
-MAIN_KEY QDOS     IO.FBYTE
-         SF       MSGPRNTD(A6)
-         MOVE.B   D1,D2
-         QDOS     SD.CURS
-         MOVE.B   D2,D1
+         BEQ.S    MAIN_KEY          ; yes, don't print cursor (faster!)
+         QDOS     SD.CURE           ; else, enable cursor
+MAIN_KEY QDOS     IO.FBYTE          ; now wait for a keypress...
+         SF       MSGPRNTD(A6)      ; clear flag
+         MOVE.B   D1,D2             ; save keypress
+         QDOS     SD.CURS           ; disable cursor again
+         MOVE.B   D2,D1             ; now consider keypress
          CMPI.B   #TAB,D1
          BEQ.S    MAINCTRL
          CMPI.B   #LF,D1
          BEQ.S    MAINCTRL
          CMPI.B   #ESC,D1
-         BEQ.S    MAINCTRL                 
-         CMPI.B   #$BF,D1
-         BLS.S    ENT_CHR
-         CMPI.B   #$FC,D1           Shift-SPACE
-         BEQ.S    SH_SPACE
-MAINCTRL LEA      KEYTBL-2,A1
-LOOK_KEY ADDQ.W   #2,A1
-         MOVE.W   (A1)+,D0
-         BEQ      MAINLOOP
-         CMP.B    D0,D1
-         BNE      LOOK_KEY
-         ADDA.W   (A1),A1
-         JSR      (A1)
-         BRA      MAINLOOP
-SH_SPACE MOVEQ    #' ',D1
-ENT_CHR  BSR      COPYLINE
-         TST.B    WORDWRAP(A6)
-         BEQ      NO_WRAP
-         CMP.W    RIGHTMAR(A6),D6
-         BNE      NO_WRAP
+         BEQ.S    MAINCTRL          ; lookup any of these codes
+         CMPI.B   #$BF,D1           ; printable character?
+         BLS.S    ENT_CHR           ; yes
+         CMPI.B   #$FC,D1           ; Shift-SPACE?
+         BEQ.S    SH_SPACE          ; yes, replace by normal space
+MAINCTRL LEA      KEYTBL-2,A1       ; lookup any other codes
+LOOK_KEY ADDQ.W   #2,A1             ; next entry
+         MOVE.W   (A1)+,D0          ; get code (lower byte)
+         BEQ      MAINLOOP          ; zero marks end - loop back
+         CMP.B    D0,D1             ; found code?
+         BNE      LOOK_KEY          ; no, loop around
+         ADDA.W   (A1),A1           ; else, add offset to handler
+         JSR      (A1)              ; call handler
+         BRA      MAINLOOP          ; and loop for next key
+
+SH_SPACE MOVEQ    #' ',D1           ; replace shift-space with space
+ENT_CHR  BSR      COPYLINE          ; copy line to line buffer if needed
+         TST.B    WORDWRAP(A6)      ; wordwrap on?
+         BEQ      NO_WRAP           ; no, just add character
+         CMP.W    RIGHTMAR(A6),D6   ; against right margin?
+         BNE      NO_WRAP           ; no, skip
          MOVE.W   D6,D0
          CMPI.B   #' ',D1
          BEQ.S    WRAP_NL
@@ -918,10 +973,10 @@ SH_TAB   MOVEQ    #0,D1
 * Handle ENTER-keypress
 
 NEWLINE  TST.B    OVERWMOD(A6)
-         BEQ.S    SPLIT_LN          Jump if INSERT mode
+         BEQ.S    SPLIT_LN          ; Jump if INSERT mode
          BSR      COPYLINE
          CMP.W    MAXLINE(A6),D7
-         BHS.S    SPL_NWLN          But if at end of file, create a new line
+         BHS.S    SPL_NWLN          ; But if at end of file, create a new line
 NL_LEFT  BSR      ENT_LINE
          BSR      GET_INDT
          SUB.W    D6,D1
@@ -934,35 +989,35 @@ NL_LEFT  BSR      ENT_LINE
 
 SPLIT_LN BSR      COPYLINE
          BSR      STRIPSPC
-         MOVE.W   D1,D2             D2 = line length
-         SUB.W    D6,D2             D2 = no. of characters after cursor
+         MOVE.W   D1,D2             ; D2 = line length
+         SUB.W    D6,D2             ; D2 = no. of characters after cursor
          BGE.S    SPL_LLN
 SPL_NWLN MOVEQ    #0,D2
-SPL_LLN  SUB.W    D2,LINELEN(A6)    Chop off line after cursor
+SPL_LLN  SUB.W    D2,LINELEN(A6)    ; Chop off line after cursor
          MOVE.W   LINELEN(A6),-(A7)
-         BSR      ENT_LIN1          Enter line + extra LF
-         SUBQ.B   #1,(A5,D7.W)      Discount extra LF from line length
+         BSR      ENT_LIN1          ; Enter line + extra LF
+         SUBQ.B   #1,(A5,D7.W)      ; Discount extra LF from line length
          MOVEQ    #1,D1
-         BSR      INSRT_LN          Insert extra line entry...
+         BSR      INSRT_LN          ; Insert extra line entry...
          BLT      MAIN_ERR
-         MOVE.B   #1,1(A5,D7.W)     ...initially blank
-         BSR      GET_INDT          Get position of new left margin
-         ADD.W    D2,D1             D1 = length of remaining line
+         MOVE.B   #1,1(A5,D7.W)     ; ...initially blank
+         BSR      GET_INDT          ; Get position of new left margin
+         ADD.W    D2,D1             ; D1 = length of remaining line
          CMPI.W   #254,D1
          IF HI THEN
-            MOVE.W   #254,D1        Ensure length is OK
+            MOVE.W   #254,D1        ; Ensure length is OK
          ENDIF
-         MOVE.W   (A7)+,D0          Get start of line after cursor
-         MOVE.W   D1,LINELEN(A6)    Store new length
-         SUB.W    D2,D1             Restore indent position
+         MOVE.W   (A7)+,D0          ; Get start of line after cursor
+         MOVE.W   D1,LINELEN(A6)    ; Store new length
+         SUB.W    D2,D1             ; Restore indent position
          MOVEM.W  D1-D2,-(A7)
-         TST.W    D2                Any characters to move?
-         BEQ.S    SPL_SPC           no
-         LEA      (A3,D0.W),A1      Point to first char in buffer
-         SUB.W    D0,D1             Subtract "old" from "new" pos
-         BEQ.S    SPL_SPC           It's already in the right place
-         BLT.S    SPL_DOWN          We'll have to move down if <0
-         ADDA.W   D2,A1             If >0, move up
+         TST.W    D2                ; Any characters to move?
+         BEQ.S    SPL_SPC           ; no
+         LEA      (A3,D0.W),A1      ; Point to first char in buffer
+         SUB.W    D0,D1             ; Subtract "old" from "new" pos
+         BEQ.S    SPL_SPC           ; It's already in the right place
+         BLT.S    SPL_DOWN          ; We'll have to move down if <0
+         ADDA.W   D2,A1             ; If >0, move up
 SPL_UP   MOVE.B   -(A1),(A1,D1.W)
          SUBQ.W   #1,D2
          BGT      SPL_UP
@@ -970,37 +1025,38 @@ SPL_UP   MOVE.B   -(A1),(A1,D1.W)
 SPL_DOWN MOVE.B   (A1)+,-1(A1,D1.W)
          SUBQ.W   #1,D2
          BGT      SPL_DOWN
-SPL_SPC  MOVE.W   (A7),D1           Finally insert the spaces now
-         BEQ.S    SPL_TAS           ...if any
+SPL_SPC  MOVE.W   (A7),D1           ; Finally insert the spaces now
+         BEQ.S    SPL_TAS           ; ...if any
          MOVE.L   A3,A1
 SPL_SPCL MOVE.B   #' ',(A1)+
          SUBQ.W   #1,D1
          BGT      SPL_SPCL
-SPL_TAS  TAS      EDIT_LN(A6)       Signal "line is in buffer"
-         TST.W    2(A7)
+SPL_TAS  TST.W    2(A7)
          IF NE THEN
-            QDOS     SD.CLRRT       and clear any chars right from the cursor
+            QDOS     SD.CLRRT       ; and clear any chars right from the cursor
          ENDIF
          MOVEM.W  (A7)+,D1-D2
-         SUB.W    D6,D1             Find how many columns to move cursor
-         BSR.S    HCUR
+         SUB.W    D6,D1             ; Find how many columns to move cursor
+         BSR.S    HCUR              ; move cursor, panning if needed
          MOVE.W   D5,D1
-         ADDQ.W   #1,D1             Go one line down on the screen
+         ADDQ.W   #1,D1             ; Go one line down on the screen
          CMP.W    WINLEN(A6),D1
-         BGE.S    SPL_SCUP          ...unless we're already at the bottom
-         MOVE.W   D1,D5
-         MOVEQ    #10,D1            But if not, scroll remaining part down
+         BGE.S    SPL_SCUP          ; ...unless we're already at the bottom
+         MOVE.W   D1,D5             ; set new row position
+         MOVEQ    #10,D1            ; But if not, scroll remaining part down
          QDOS     SD.SCRBT
          BRA.S    SPL_DLIN
-SPL_SCUP MOVEQ    #-10,D1           We're at the bottom so scroll up
+SPL_SCUP MOVEQ    #-10,D1           ; We're at the bottom so scroll up
          QDOS     SD.SCROL
          MOVEQ    #0,D0
          SUB.W    D5,D7
-         MOVE.B   (A5,D7.W),D0
+         MOVE.B   (A5,D7.W),D0      ; get length of top line in window
          ADD.W    D5,D7
-         ADDA.L   D0,A4             ...and adjust top line pointer
-SPL_DLIN ADDQ.W   #1,D7             Go to next line
-         BRA      DSP_BUF           ...and finally display the new line
+         ADDA.L   D0,A4             ; ...and adjust top line pointer
+SPL_DLIN ADDQ.W   #1,D7             ; Go to next line
+         TAS      EDIT_LN(A6)       ; signal 'new line in buffer'
+         BSR      ENT_LINE          ; FIX: commit remaining part too!
+         BRA      DSP_BUF           ; ...and finally display the new line
 
          XDEF     UNDO
 
@@ -1035,27 +1091,27 @@ SRIGHT   BSR.S    WORDRGHT
 * This is the common entry point for all horizontal cursor operations. D1 
 * holds the number of columns to move left (< 0) or right (> 0).
 
-HCUR     MOVE.W   D1,-(A7)
-         SUB.W    D6,D4
-         ADD.W    D1,D6
-         BLT.S    HCUR_L
+HCUR     MOVE.W   D1,-(A7)          ; save direction
+         SUB.W    D6,D4             ;
+         ADD.W    D1,D6             ; get new absolute column pos
+         BLT.S    HCUR_L            ; do not allow < 0
          CMPI.W   #254,D6
          BLE.S    HCUR_2
-         MOVE.W   #254,D6
+         MOVE.W   #254,D6           ; and do not allow > 254
          BRA.S    HCUR_2
 HCUR_L   MOVEQ    #0,D6
-HCUR_2   ADD.W    D6,D4
-         BLT.S    HCUR_SL
-         CMP.W    WINWID(A6),D4
-         BLT.S    HCUR_END
-         MOVEQ    #-10,D4
+HCUR_2   ADD.W    D6,D4             ; D4 now holds new column pos on screen
+         BLT.S    HCUR_SL           ; if <0, pan left
+         CMP.W    WINWID(A6),D4     ; still in window?
+         BLT.S    HCUR_END          ; yes, done
+         MOVEQ    #-10,D4           ; else, pan
          ADD.W    WINWID(A6),D4
          BRA.S    HCUR_3
 HCUR_SL  MOVEQ    #10,D4
 HCUR_3   CMP.W    D4,D6
          BGE.S    HCUR_4
          MOVE.W   D6,D4
-HCUR_4   BSR      DSP_PAGE
+HCUR_4   BSR      DSP_PAGE          ; redraw screen
 HCUR_END MOVE.W   (A7)+,D1
          RTS
 

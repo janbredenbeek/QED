@@ -6,9 +6,10 @@
 * Release 2.00b2: January 2018
 * Release 2.01  : 25 September 2018
 * Release 2.02  : 03 October 2018
+* Release 2.03  : 26 May 2021
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
-* This should be assembled and linked using the GST Macro Assembler and Linker
+* This should be assembled and linked using the QMAC Macro Assembler and Linker
 * (see http://www.dilwyn.me.uk/asm/index.html)
 *
 * Support Routines
@@ -22,39 +23,78 @@
 
          SECTION  CODE
 
+* subroutine to find line length (either right margin or 255)
+* D0 -  o- length of line found
+* A1 -ip - start of line
+
+FINDEOL  MOVEM.L  A0-A2,-(A7)         
+         LEA      255(A1),A2
+         SUBA.L   A0,A0             ; zero A0
+         TST.B    WORDWRAP(A6)      ; Word wrap on?
+         BEQ.S    FE_2              ; no, just use 255
+         LEA      1(A1),A2
+         ADDA.W   RIGHTMAR(A6),A2   ; maximum length considering right margin
+FE_2     CMPA.L   TXTEND(A6),A2
+         BLS.S    FE_SKPSP          ; don't go beyond end of file
+         MOVE.L   TXTEND(A6),A2
+FE_SKPSP CMPA.L   A2,A1
+         BHS.S    FE_END
+         MOVE.B   (A1)+,D0
+         CMPI.B   #LF,D0
+         BEQ.S    FE_END
+         CMPI.B   #' ',D0           ; skip leading whitespace
+         BEQ      FE_SKPSP
+         CMPI.B   #TAB,D0
+         BEQ      FE_SKPSP
+         SUBQ.L   #1,A1             ; go back to first non-whitespace char
+FE_COUNT CMPA.L   A2,A1             ; test against right margin
+         BHS.S    FE_END
+         MOVE.B   (A1)+,D0
+         CMPI.B   #LF,D0
+         BEQ.S    FE_END1           ; EOL found
+         CMPI.B   #TAB,D0
+         BEQ.S    FE_WSP
+         CMPI.B   #' ',D0
+         BNE      FE_COUNT
+FE_WSP   MOVE.L   A1,A0             ; set position of last whitespace char
+         BRA      FE_COUNT
+FE_END   MOVE.L   A0,D0             ; position of last whitespace
+         BEQ.S    FE_END1           ; if none, leave A1 at EOL or right margin
+         MOVE.L   A0,A1             ; else, set new A1
+FE_END1  MOVE.L   A1,D0
+         MOVEM.L  (A7)+,A0-A2
+         SUB.L    A1,D0             ; D0 now holds line length
+         RTS
+
 *CONSTRUCT LINE LENGTH TABLE
 
          XDEF     MK_LNTBL
 
-MK_LNTBL MOVEM.L  D1/D3/A0-A2,-(A7)
-         MOVEM.L  TXTBASE(A6),A1-A2
-         MOVEQ    #-1,D1
-         MOVEQ    #LF,D3
-MKL_LP   LEA      255(A1),A0
-MKL_LP1  CMPA.L   A2,A1
-         BHS.S    MKL_EN1
-         CMPA.L   A0,A1
-         BHS.S    MKL_INC
-         CMP.B    (A1)+,D3
-         BNE      MKL_LP1
-MKL_INC  ADDQ.W   #1,D1
-         BVC      MKL_LP
-         MOVE.L   A1,TXTEND(A6)
-         ERRMSG   {'Too many lines (>32768) - Extra ignored'}
-         MOVE.W   #32767,D1
-MKL_EN1  TST.W    D1
+MK_LNTBL MOVEM.L  D1/A0-A2,-(A7)
+         MOVEM.L  TXTBASE(A6),A1-A2 ; set TXTBASE and TXTEND
+         MOVEQ    #-1,D1            ; preset line counter
+MKL_LP   CMPA.L   A2,A1             ; past TXTEND?
+         BHS.S    MKL_EN1           ; yes, end of loop
+         BSR      FINDEOL           ; look for EOL or right margin (max 255)
+         ADDA.L   D0,A1             ; bump pointer
+MKL_INC  ADDQ.W   #1,D1             ; bump line counter
+         BVC      MKL_LP            ; loop back unless overflow
+         MOVE.L   A1,TXTEND(A6)     ; bad luck...
+         ERRMSG   {'Too many lines (>32767) - Extra ignored'}
+         MOVE.W   #32767,D1         ; reset number of lines
+MKL_EN1  TST.W    D1                ; no text at all?
          IF LT THEN
-            MOVEQ    #0,D1
+            MOVEQ    #0,D1          ; yes, set MAXLINE to 0
             MOVE.L   TXTBASE(A6),A1
-            MOVE.B   D3,(A1)+
+            MOVE.B   #LF,(A1)+       ; but enter one LF char
             MOVE.L   A1,TXTEND(A6)
          ENDIF
-         MOVE.W   D1,MAXLINE(A6)
-         ADDI.W   #256,D1
-         BSR      ALLOC_LN
-         BLE.S    MKL_END
+         MOVE.W   D1,MAXLINE(A6)    ; set MAXLINE
+         ADDI.W   #256,D1           ; allow for 256 more lines
+         BSR      ALLOC_LN          ; allocate the line table
+         BLE.S    MKL_END           ; D0 returned positive for split lines
 MKL_TRNC ERRMSG   {'Long lines split'}
-MKL_END  MOVEM.L  (A7)+,D1/D3/A0-A2
+MKL_END  MOVEM.L  (A7)+,D1/A0-A2
          TST.L    D0
          RTS
 
@@ -104,38 +144,30 @@ ILN_ERR  ERRMSG   {'No room for line table'}
 
 *ALLOCATE AND CONSTRUCT LINE LENGTH TABLE
 
-ALLOC_LN MOVEM.L  D2-D4/A0-A3,-(A7)
+ALLOC_LN MOVEM.L  D2-D3/A0-A3,-(A7)
          ANDI.L   #$FFFF,D1
          MOVEQ    #-1,D2
          QDOS     MT.ALCHP
-         TST.L    D0
+         MOVE.L   D0,D3
          BNE.S    ALN_ERR
-         MOVE.L   A0,A5
-         SUBI.W   #$10,D1
-         MOVE.W   D1,LNTBLSIZ(A6)
-         MOVEM.L  TXTBASE(A6),A1-A2
-         MOVEQ    #0,D0
-         MOVEQ    #0,D2
-         MOVEQ    #LF,D3
-         MOVE.L   #255,D4
-ALN_NEWL MOVE.L   A1,A0
-         LEA      (A0,D4.W),A3
-ALN_LP   CMPA.L   A2,A1
-         BHS.S    ALN_END
-         CMPA.L   A3,A1
-         BHS.S    ALN_LONG
-         CMP.B    (A1)+,D3
-         BNE      ALN_LP
-ALN_LEN  MOVE.L   A1,D1
-         SUB.L    A0,D1
-         MOVE.B   D1,(A5,D2.W)
-         ADDQ.W   #1,D2
-         BRA      ALN_NEWL
-ALN_LONG MOVEQ    #1,D0
-         BRA      ALN_LEN
-ALN_END  MOVE.L   A0,TXTEND(A6)
-ALN_ERR  MOVEM.L  (A7)+,D2-D4/A0-A3
-         TST.L    D0
+         MOVE.L   A0,A5             ; A5 always points to base
+         SUBI.W   #$10,D1           ; discount extra bytes from mt.alchp
+         MOVE.W   D1,LNTBLSIZ(A6)   ; set line table size
+         MOVEM.L  TXTBASE(A6),A1-A2 ; TXTBASE and TXTEND
+         MOVEQ    #0,D2             ; line counter
+ALN_LP   CMPA.L   A2,A1             ; TXTEND reached?
+         BHS.S    ALN_END           ; yes
+         BSR      FINDEOL           ; find length of line
+ALN_LEN  MOVE.B   D0,(A5,D2.W)      ; set table entry
+         ADDQ.W   #1,D2             ; increment counter
+         ADDA.L   D0,A1             ; bump pointer
+         CMPI.B   #LF,-1(A1)        ; got to EOL or line wrapped?
+         BEQ.S    ALN_LP
+         MOVEQ    #1,D3             ; flag 'long line'
+         BRA      ALN_LP            ; loop for next part (split)
+ALN_END  MOVE.L   A1,TXTEND(A6)     ; set TXTEND
+ALN_ERR  MOVE.L   D3,D0
+         MOVEM.L  (A7)+,D2-D3/A0-A3
          RTS
 
 * DELETE D1 ENTRIES FROM LINE TABLE
@@ -247,36 +279,36 @@ DO_TAB   MOVE.L   D2,D0
 
          XDEF     ENT_LINE,ENT_LIN1
 
-ENT_LIN1 MOVEQ    #1,D0
+ENT_LIN1 MOVEQ    #1,D0             ; flag 'append extra LF'
          BRA.S    EL_TEST
 ENT_LINE MOVEQ    #0,D0
-EL_TEST  CMPA.W   #0,A5
-         BEQ.S    NO_LNTBL
-         TST.B    EDIT_LN(A6)
-         BEQ.S    EL_RTS
+EL_TEST  CMPA.W   #0,A5             ; do we have a line table?
+         BEQ.S    NO_LNTBL          ; oops!
+         TST.B    EDIT_LN(A6)       ; current line has been edited?
+         BEQ.S    EL_RTS            ; no, already done
          SF       EDIT_LN(A6)
          MOVEM.L  D0-D2/A1/A3,-(A7)
          MOVEQ    #0,D1
-         MOVE.W   LINELEN(A6),D1
+         MOVE.W   LINELEN(A6),D1    ; current line length
          MOVE.L   A3,A1
-         BSR      CMPTABS
-         MOVE.W   D1,LINELEN(A6)
-         BSR      STRIPSPC
-         MOVE.W   D1,D2
-         ADD.W    D0,D1
-         ADDQ.W   #1,D1
-         MOVE.B   (A5,D7.W),D0
-         SUB.L    D0,D1
-         BSR.S    GETSCRLN
-         BSR      MOV_TXT
-         BNE.S    EL_ERR
-         ADD.B    D1,(A5,D7.W)
+         BSR      CMPTABS           ; compress tabs if any
+         MOVE.W   D1,LINELEN(A6)    ; reset line length
+         BSR      STRIPSPC          ; strip trailing spaces
+         MOVE.W   D1,D2             ; new length
+         ADD.W    D0,D1             ; add in possible EOL
+         ADDQ.W   #1,D1             ; ?
+         MOVE.B   (A5,D7.W),D0      ; length of existing line + possible LF
+         SUB.L    D0,D1             ; discount it
+         BSR.S    GETSCRLN          ; get current position in buffer in A1
+         BSR      MOV_TXT           ; move text above up or down
+         BNE.S    EL_ERR            ; oops... no room
+         ADD.B    D1,(A5,D7.W)      ; adjust length
          BRA.S    EL_COPYE
-EL_COPYL MOVE.B   (A3)+,(A1)+
+EL_COPYL MOVE.B   (A3)+,(A1)+       ; copy new line
 EL_COPYE DBF      D2,EL_COPYL
-         TST.L    (A7)
-         BEQ.S    EL_END
-         MOVE.B   #LF,(A1)
+         TST.L    (A7)              ; do we need extra LF?
+         BEQ.S    EL_END            ; no
+         MOVE.B   #LF,(A1)          ; else, enter it
 EL_END   MOVEM.L  (A7)+,D0-D2/A1/A3
 EL_RTS   RTS
          XDEF     EL_ERR,NO_LNTBL
@@ -338,24 +370,43 @@ GI_END1  MOVE.W   D2,D1
          MOVEM.L  (A7)+,D0/D2/D7/A0-A1
 GI_END   RTS
 
-* MOVE TEXT FROM A1 TO TXTEND D1 BYTES FORWARD/BACKWARD
+* Move text from A1 to TXTEND D1 bytes forward/backward
+* 20210511: Can handle more than 1MB now!
 
          XDEF     MOV_TXT
 
-MOV_TXT  MOVEM.L  D1/A0-A2,-(A7)
+MOV_TXT  MOVEM.L  D1/A0-A2,-(A7)    ; save registers
          MOVE.L   TXTEND(A6),A0
-         LEA      (A0,D1.L),A2
-         CMPA.L   TXTMAX(A6),A2
-         BHI      MT_OM
-         ST       EDIT_TXT(A6)
-         MOVE.L   A2,TXTEND(A6)
+         LEA      (A0,D1.L),A2      ; new TXTEND
+         CMPA.L   TXTMAX(A6),A2     ; above end of buffer?
+         BLS.S    MT_MOVE           ; no, continue
+         MOVEQ    #ERR.OM,D0        ; Out of memory
+         BRA      MT_RTS            ; and exit
+
+; This needs a more intelligent approach. Rather than just bail out if the
+; buffer is full, we could allocate a larger buffer and move everything there.
+; Of course, the downside of this will be heap fragmentation, but who cares
+; when you have many megabytes to play with? If not, allocating a new buffer
+; will fail anyway and we'll return ERR.OM just as before...
+; As this needs some changes to the calling code (e.g. block pointers will need
+; adjustments) this will be addressed in v2.04+...
+
+MT_MOVE  ST       EDIT_TXT(A6)      ; signal 'text modified'
+         MOVE.L   A2,TXTEND(A6)     ; set new TXTEND
          MOVE.L   A0,D0
-         SUB.L    A1,D0
-         NEG.L    D1
-         BGT.S    MT_RECLM
-         BEQ.S    MT_OK
-         ROR.L    #4,D0
-         BRA.S    MT_ILP1E
+         SUB.L    A1,D0             ; find how many bytes to move before TXTEND
+         NEG.L    D1                ; bytes to insert or remove
+         BGT.S    MT_RECLM          ; >0 now means reclaim buffer space
+         BEQ      MT_OK             ; and if 0, we're already done
+         MOVEQ    #15,D1
+         AND.B    D0,D1
+         ASR.L    #4,D0             ; divide by 16, remainder now in D1
+         BRA.S    MT_ILP1E          ; enter loop at end
+
+; Move bytes up from top, 16 at a time.
+
+MT_ILP1H SWAP     D0                ; do another 1MB (16*65536) now...
+
 MT_ILP1S MOVE.B   -(A0),-(A2)
          MOVE.B   -(A0),-(A2)
          MOVE.B   -(A0),-(A2)
@@ -373,17 +424,25 @@ MT_ILP1S MOVE.B   -(A0),-(A2)
          MOVE.B   -(A0),-(A2)
          MOVE.B   -(A0),-(A2)
 MT_ILP1E DBF      D0,MT_ILP1S
-         CLR.W    D0
-         ROL.L    #4,D0
+         SWAP     D0
+         DBF      D0,MT_ILP1H
          BRA.S    MT_ILP2E
-MT_ILP2S MOVE.B   -(A0),-(A2)
-MT_ILP2E DBF      D0,MT_ILP2S
+MT_ILP2S MOVE.B   -(A0),-(A2)       ; remaining bytes (0-15)
+MT_ILP2E DBF      D1,MT_ILP2S
          BRA.S    MT_OK
-MT_RECLM LEA      (A1,D1.L),A2
-         SUB.L    D1,D0
-         BLE.S    MT_OK
-         ROR.L    #4,D0
-         BRA.S    MT_DLP1E
+
+MT_RECLM LEA      (A1,D1.L),A2      ; first byte to move down
+         SUB.L    D1,D0             ; discount bytes to be removed
+         BLE.S    MT_OK             ; nothing left - done!
+         MOVEQ    #15,D1
+         AND.B    D0,D1
+         ASR.L    #4,D0             ; divide by 16, remainder in D1
+         BRA.S    MT_DLP1E          ; enter loop at end
+
+; Move bytes up, 16 at a time
+
+MT_DLP1H SWAP     D0                ; do another 1MB now
+
 MT_DLP1S MOVE.B   (A2)+,(A1)+
          MOVE.B   (A2)+,(A1)+
          MOVE.B   (A2)+,(A1)+
@@ -401,14 +460,12 @@ MT_DLP1S MOVE.B   (A2)+,(A1)+
          MOVE.B   (A2)+,(A1)+
          MOVE.B   (A2)+,(A1)+
 MT_DLP1E DBF      D0,MT_DLP1S
-         CLR.W    D0
-         ROL.L    #4,D0
+         SWAP     D0
+         DBF      D0,MT_DLP1H
          BRA.S    MT_DLP2E
-MT_DLP2S MOVE.B   (A2)+,(A1)+
-MT_DLP2E DBF      D0,MT_DLP2S
-MT_OK    MOVEQ    #0,D0
-         BRA.S    MT_RTS
-MT_OM    MOVEQ    #ERR.OM,D0
+MT_DLP2S MOVE.B   (A2)+,(A1)+       ; remaining bytes (0-15)
+MT_DLP2E DBF      D1,MT_DLP2S
+MT_OK    MOVEQ    #0,D0             ; OK
 MT_RTS   MOVEM.L  (A7)+,D1/A0-A2
          RTS
 
@@ -753,17 +810,17 @@ DISPSTAT MOVEM.L  A0-A2,-(A7)
 DS_FNAME QDOS     IO.SSTRG
 DS_PARMS MOVEQ    #3,D1
          QDOS     SD.TAB
-         MOVE.W   D7,D1
+         MOVE.W   D7,D1             ; line number
          MOVEQ    #5,D2
          BSR.S    DS_NUM1
          MOVEQ    #13,D1
          QDOS     SD.TAB
-         MOVE.W   D6,D1
+         MOVE.W   D6,D1             ; column number
          MOVEQ    #3,D2
          BSR.S    DS_NUM1
          MOVEQ    #21,D1
          QDOS     SD.TAB
-         MOVE.W   MAXLINE(A6),D1
+         MOVE.W   MAXLINE(A6),D1    ; line count
          MOVEQ    #5,D2
          BSR.S    DS_NUM1
          MOVEQ    #41,D1
@@ -778,7 +835,7 @@ DS_PARMS MOVEQ    #3,D1
 
          XDEF     DS_NUM,DS_NUM1
 
-DS_NUM1  ADDQ.W   #1,D1
+DS_NUM1  ADDQ.W   #1,D1             ; add 1 for 0-based line counters
 DS_NUM   SUBQ.W   #6,A7
          MOVE.L   A7,A1
          BSR.S    ITOD
@@ -831,55 +888,55 @@ RDNUM_EN MOVEQ    #0,D0
 
          XDEF     FIND_DSP,FIND_DS1
 
-FIND_DSP MOVEQ    #0,D4
+FIND_DSP MOVEQ    #0,D4             ; pan to left of lines
          MOVEQ    #0,D6
 FIND_DS1 BSR      ENT_LINE
          MOVEQ    #0,D2
-         CMP.W    MAXLINE(A6),D1
+         CMP.W    MAXLINE(A6),D1    ; test against MAXLINE
          BLS.S    FD_1
          MOVE.W   MAXLINE(A6),D1
-         MOVEQ    #-1,D2
-FD_1     MOVE.W   D5,D3
-         SUB.W    D3,D1
-         BGE.S    FD_2
-         ADD.W    D1,D3
-         MOVEQ    #0,D1
-FD_2     MOVE.W   WINLEN(A6),D0
-         SUBQ.W   #1,D0
+         MOVEQ    #-1,D2            ; signal 'at bottom of file'
+FD_1     MOVE.W   D5,D3             ; row pos on window
+         SUB.W    D3,D1             ; find top line number
+         BGE.S    FD_2              ; in range?
+         ADD.W    D1,D3             ; no, before top
+         MOVEQ    #0,D1             ; first line
+FD_2     MOVE.W   WINLEN(A6),D0     ; window length (height)
+         SUBQ.W   #1,D0             ; bottom row
          ADD.W    D1,D0
-         SUB.W    MAXLINE(A6),D0
-         BLS.S    FD_3
-         ADD.W    D0,D3
-         SUB.W    D0,D1
-         BGE.S    FD_3
+         SUB.W    MAXLINE(A6),D0    ; bottom row beyond last line?
+         BLS.S    FD_3              ; no, go ahead
+         ADD.W    D0,D3             ; adjust row
+         SUB.W    D0,D1             ; adjust line number
+         BGE.S    FD_3              ; in range?
          ADD.W    D1,D3
-         MOVEQ    #0,D1
-FD_3     BSR.S    FINDLINE
-         MOVE.L   A1,A4
-         MOVE.W   D3,D5
-         MOVE.W   D1,D7
-         ADD.W    D5,D7
-         BSR      DSP_PAGE
-         TST.B    D2
-         BLT      END_FILE
+         MOVEQ    #0,D1             ; first line
+FD_3     BSR.S    FINDLINE          ; get addr of line
+         MOVE.L   A1,A4             ; set A4
+         MOVE.W   D3,D5             ; row on window, possible adjusted
+         MOVE.W   D1,D7             ; current line
+         ADD.W    D5,D7             ; add in row position
+         BSR      DSP_PAGE          ; and display the page
+         TST.B    D2                ; did we hit the bottom?
+         BLT      END_FILE          ; yes, show message
          RTS
 
-*FIND ADDR OF LINE D1 (IN A1)
+* FIND ADDR OF LINE D1 (IN A1)
 
          XDEF     FINDLINE
 
 FINDLINE MOVEM.L  D7/A0,-(A7)
-         SUB.W    D5,D7
-         LEA      (A5,D7.W),A0
-         MOVE.L   A4,A1
-         SUB.W    D1,D7
-         BGT.S    FL_BACK
-         BEQ.S    FL_END
-         NEG.W    D7
+         SUB.W    D5,D7             ; D7 = now top line # in window
+         LEA      (A5,D7.W),A0      ; line table entry
+         MOVE.L   A4,A1             ; address of top line in window
+         SUB.W    D1,D7             ; D7 = how many lines after the one we want
+         BGT.S    FL_BACK           ; if >0, we need to go back
+         BEQ.S    FL_END            ; if 0, we're done
+         NEG.W    D7                ; now D7 = lines to go forward
          MOVEQ    #0,D0
-         MOVE.W   MAXLINE(A6),D0
+         MOVE.W   MAXLINE(A6),D0    ; last line #
          ADDQ.W   #1,D0
-         SUB.W    D1,D0
+         SUB.W    D1,D0             ; find MAXLINE-D1+1
          CMP.W    D7,D0
          BGE.S    FL_UP
          MOVE.W   D0,D7

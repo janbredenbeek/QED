@@ -6,9 +6,10 @@
 * Release 2.00b2: January 2018
 * Release 2.01  : 25 September 2018
 * Release 2.02  : 03 October 2018
+* Release 2.03  : 26 May 2021
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
-* This should be assembled and linked using the GST Macro Assembler and Linker
+* This should be assembled and linked using the QMAC Macro Assembler and Linker
 * (see http://www.dilwyn.me.uk/asm/index.html)
 *
 * Commands
@@ -406,6 +407,8 @@ CMDTBL   DC.W     'A '
          DC.W     CMD_R-*
          DC.W     'RC'
          DC.W     CMD_RC-*
+         DC.W     'RF'
+         DC.W     CMD_RF-*
          DC.W     'RT'
          DC.W     CMD_RT-*
          DC.W     'S '
@@ -475,15 +478,26 @@ CMD_NWLN BSR      STORE_LN
          BRA      FIND_DSP
 
 CMD_SL   MOVE.W   #LEFTMAR,D2
-         BRA.S    CMD_GTNM
+         BRA.S    SLR_GET
 CMD_SR   MOVE.W   #RIGHTMAR,D2
-CMD_GTNM BSR      GETNUM
+SLR_GET  BSR      GETNUM
+         CMPI.W   #255,D1
+         BHI.S    SLR_OR            ; avoid silly margins!
+         MOVE.W   (A6,D2.W),D0      ; save old
          SUBQ.W   #1,D1
-         MOVE.W   D1,(A6,D2.W)
-         RTS
+         MOVE.W   D1,(A6,D2.W)      ; enter new
+         MOVE.W   RIGHTMAR(A6),D1
+         CMP.W    LEFTMAR(A6),D1    ; right must be > left
+         BLE.S    SLR_OR1           ; else, restore & error msg
+SLR_RTS  RTS
 CMD_ST   BSR      GETNUM
+         CMPI.W   #255,D1
+         BGT.S    SLR_OR
          MOVE.W   D1,TABINC(A6)
          RTS
+SLR_OR1  MOVE.W   D0,(A6,D2.W)      ; restore old value
+SLR_OR   ERRMSG   {'Out of range'}
+         BRA      MAIN_ERR
 
 CMD_BS   MOVE.W   D7,BLKSTART(A6)
          RTS
@@ -890,6 +904,8 @@ IB_LLOOP MOVE.B   (A5,D2.W),(A5,D0.W)
 IB_BADBL ERRMSG   {'"IB" position must be outside block'}
          BRA      MAIN_ERR
 
+* Delete Block
+
 CMD_DB   BSR      GETBLOCK
          BSR      STORE_LN
          MOVEQ    #0,D5
@@ -918,13 +934,17 @@ CMD_R    SF       COOKED(A6)
          BRA.S    R_RC_1
 CMD_RC   ST       COOKED(A6)
 R_RC_1   BSR      GETSTR
-         MOVEM.L  D1/A1,-(A7)
+         MOVEM.L  D1-D2/A1,-(A7)
          BSR      FORK
          BNE      NO_ROOM
          MOVE.L   TXTWIN(A6),A0
          MOVEQ    #-1,D3
          QDOS     SD.CLEAR
-         MOVEM.L  (A7)+,D1/A1
+         MOVE.L   GUARDWIN(A6),A0
+         MOVEQ    #0,D1
+         MOVEQ    #0,D2
+         QDOS     SD.POS
+         MOVEM.L  (A7)+,D1-D2/A1
          LEA      CMDBUF(A6),A0
          BRA.S    R_COPY_E
 R_COPY_L MOVE.B   (A1)+,(A0)+
@@ -1113,6 +1133,35 @@ AI_LOOP  SUBQ.W   #1,D2
          BRA      AI_LOOP
 AI_END   RTS
 
+* Reformat page according to right margin and Word Wrap setting
+
+CMD_RF   BSR      ENT_LINE          ; commit any changes
+         MOVE.L   A5,D0             ; throw away current line table, if any
+         IF NE THEN
+            MOVE.L   D0,A0
+            QDOS     MT.RECHP
+            SUBA.L   A5,A5
+         ENDIF
+         BSR      MK_LNTBL          ; and rebuild it again
+         MOVEQ    #0,D7
+         MOVE.L   TXTBASE(A6),A1
+         MOVEQ    #0,D0
+RF_LOOP  CMPA.L   A4,A1             ; find top line in window again
+         BHS.S    RF_FOUND
+         MOVE.B   (A5,D7.W),D0
+         ADDA.W   D0,A1
+         ADDQ.W   #1,D7             ; count line
+         CMP.W    MAXLINE(A6),D7
+         BLT      RF_LOOP
+RF_FOUND MOVE.W   D5,-(A7)
+         MOVEQ    #0,D5
+         MOVE.L   A1,A4
+         MOVE.W   D7,D1
+         BSR      FIND_DSP
+         MOVE.W   (A7)+,D5
+         ADD.W    D5,D7
+         RTS
+
 F_GTSTR  BSR      GETSTR
          BNE.S    F_GTST_E
          LEA      FINDSTR(A6),A0
@@ -1121,6 +1170,7 @@ F_GTSTR  BSR      GETSTR
 F_COPY_L MOVE.B   (A1)+,(A0)+
 F_COPY_E DBF      D1,F_COPY_L
 F_GTST_E RTS
+
 
 CMD_F    BSR      F_GTSTR
          BRA.S    F_FORWD

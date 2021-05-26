@@ -2,7 +2,7 @@
                          =====
 
                      QL Text Editor
-           Copyright  1988-2018 Jan Bredenbeek
+           Copyright  1988-2021 Jan Bredenbeek
 
 
 Cursor movement            Delete
@@ -62,6 +62,7 @@ Q       Quit editor without saving text
 QF      Quit current file
 R/s/    Edit file <s>, keeping current file(s)
 RC/s/   Edit file <s> in cooked mode
+RF      Reformat paragraphs     
 RP      Repeat until error
 RT      Return to last line (max. 3x)
 S       Split line at cursor

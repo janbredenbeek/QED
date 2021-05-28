@@ -5,6 +5,24 @@
     This textfile describes the changes introduced in QED v2, compared
     to v1.01.
 
+    v2.03a released 28 May 2021
+    ===========================
+
+    - This is a quick fix for (Super)GoldCard users using SMSQ/E with French or
+      Spanish keyboard layout. On these systems, the key right to the 'P' key
+      is a 'dead' key used to compose accented characters. However, when this
+      key is pressed it also generates an ASCII NUL character by itself.
+      Since QED v2 allows you to enter control codes into the text (using the
+      CTRL key), using the 'compose' key to type accented characters would
+      also insert a NUL character before the one you wanted.
+      This fix will now cause a NUL character to be ignored but other control
+      codes are still accepted as before (except TAB, ENTER and ESC).
+      Note that this functionality may change in future versions as the CTRL
+      key is rather needed to implement more single-key commands, e.g. for
+      cut-copy-paste (yes, I know CTRL-C is already used for job switching so
+      maybe CTRL-K would do, or perhaps POKEing SV.CQCH?).
+      
+
     v2.03 released 26 May 2021
     ==========================
 

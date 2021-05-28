@@ -7,6 +7,7 @@
 * Release 2.01  : 25 September 2018
 * Release 2.02  : 03 October 2018
 * Release 2.03  : 26 May 2021
+* Release 2.03a : 28 May 2021
 * Licenced under GPL v3 Licence (2017)
 * See https://github.com/janbredenbeek/QED for latest version from the author
 * This should be assembled and linked using the QMAC Macro Assembler and Linker
@@ -732,6 +733,11 @@ MAIN_KEY QDOS     IO.FBYTE          ; now wait for a keypress...
          MOVE.B   D1,D2             ; save keypress
          QDOS     SD.CURS           ; disable cursor again
          MOVE.B   D2,D1             ; now consider keypress
+
+; accept control chars but reject NUL - some keyboards generate this when
+; composing accented chars!
+
+         BEQ      MAINLOOP
          CMPI.B   #TAB,D1
          BEQ.S    MAINCTRL
          CMPI.B   #LF,D1

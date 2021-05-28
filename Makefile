@@ -4,7 +4,7 @@
 SRC = QED_ASM QED2_ASM QEDCMD_ASM QED_IN
 SRCD = win3_QEDv2_
 DESTD = dos1_QED_v2_
-RELEASE = 203
+RELEASE = 203a
 
 OBJS = QED_REL QED2_REL QEDCMD_REL
 
@@ -29,6 +29,7 @@ ckin:
         $PCP -v $(DESTD)QED_IN $(SRCD)QED_IN
         $PCP -v $(DESTD)QED_HELP $(SRCD)QED_HELP
         $PCP -v $(DESTD)CHANGES_TXT $(SRCD)CHANGES_TXT
+        $PCP -v $(DESTD)Makefile $(SRCD)Makefile
 
 ckout:
         $PCP -v $(SRCD)QED_ASM $(DESTD)QED_ASM

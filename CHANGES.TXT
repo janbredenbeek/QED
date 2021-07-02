@@ -5,7 +5,7 @@
     This textfile describes the changes introduced in QED v2, compared
     to v1.01.
 
-    v2.03b released 00 June 2021
+    v2.03b released 02 July 2021
     ============================
 
     - On systems using a character height other than 10 pixels (e.g. NTSC TV

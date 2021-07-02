@@ -79,6 +79,12 @@ SKIPCMD  TST.W    D0
 SK_END   TST.W    D0
          RTS
 
+; SD.EXTOP routine to get SD.YINC. Do not assume it's 10!
+
+GET_YINC MOVE.W   $28(A0),D1
+         MOVEQ    #0,D0
+         RTS
+
 * INITIALISATION PROCEDURE
 
 ED_START ADDA.L   A4,A6             ; A6 = start of dataspace
@@ -149,19 +155,22 @@ SET_BORD MOVE.B   BORD_PRM+2,D1     ; Get paper colour for guardian window
          MOVE.L   A0,TXTWIN(A6)     ; channel ID
          MOVE.L   (A2),(A7)         ; copy definition from guardian window parms
          MOVE.L   4(A2),4(A7)
-         SUBI.W   #10,2(A7)         ; but subtract 10 to allow for command/status line
-         MOVEQ    #0,D1
-         MOVEQ    #0,D2
-         MOVEQ    #-1,D3
-         MOVE.L   A7,A1
-         QDOS     SD.WDEF           ; set size/position
          MOVE.B   CSIZE,D1
          MOVEQ    #0,D2
+         MOVEQ    #-1,D3
          QDOS     SD.SETSZ          ; set character size (only width)
+         LEA      GET_YINC,A2       ; get character height in pixels
+         QDOS     SD.EXTOP
+         MOVE.W   D1,CH_YINC(A6)    ; set variable
+         SUB.W    D1,2(A7)          ; subtract 1 row to allow for status line
+         MOVEQ    #0,D1             ; no border
+         MOVEQ    #0,D2
+         MOVE.L   A7,A1
+         QDOS     SD.WDEF           ; set size/position
          SUBQ.W   #8,A7
          MOVE.L   A7,A1
          QDOS     SD.CHENQ          ; get width/height in characters
-         MOVE.L   (A7)+,WINWID(A6)  ; store
+         MOVE.L   (A7)+,WINWID(A6)  ; store width and height
          ADDQ.W   #4,A7             ; skipover extra words
          LEA      TXTWIN_P,A2
          MOVE.B   (A2),D1           ; set paper/ink
@@ -182,7 +191,7 @@ SET_BORD MOVE.B   BORD_PRM+2,D1     ; Get paper colour for guardian window
          MOVE.L   A0,CMDWIN(A6)
          MOVE.W   2(A7),D0          ; height of text (editing) window
          ADD.W    D0,6(A7)          ; add to LHS position
-         MOVE.W   #10,2(A7)         ; just one text line...
+         MOVE.W   CH_YINC(A6),2(A7) ; just one text line...
          MOVEQ    #0,D1
          MOVEQ    #0,D2
          MOVEQ    #-1,D3
@@ -764,55 +773,59 @@ ENT_CHR  BSR      COPYLINE          ; copy line to line buffer if needed
          BEQ      NO_WRAP           ; no, just add character
          CMP.W    RIGHTMAR(A6),D6   ; against right margin?
          BNE      NO_WRAP           ; no, skip
-         MOVE.W   D6,D0
-         CMPI.B   #' ',D1
+         MOVE.W   D6,D0             ; current column position
+         CMPI.B   #' ',D1           ; space typed?
+         BEQ.S    WRAP_NL           ; yes, go wrapping
+WRAP_FSP CMPI.B   #' ',-1(A3,D0.W)  ; search from current column down for space
          BEQ.S    WRAP_NL
-WRAP_FSP CMPI.B   #' ',-1(A3,D0.W)
+         CMPI.B   #TAB,-1(A3,D0.W)  ; now include TAB too!
          BEQ.S    WRAP_NL
-         SUBQ.W   #1,D0
-         BNE      WRAP_FSP
-         BRA.S    NO_WRAP
+         SUBQ.W   #1,D0             ; go back a column...
+         BNE      WRAP_FSP          ; until we hit the start
+         BRA.S    NO_WRAP           ; oops... nothing to wrap here!
 WRAP_NL  MOVE.W   D6,D2
-         SUB.W    D0,D2
-         SUB.W    D2,D4
-         MOVE.W   D0,D6
-         MOVE.W   D6,LINELEN(A6)
-         MOVE.B   D1,-(A7)
+         SUB.W    D0,D2             ; get number of characters to wrap
+         SUB.W    D2,D4             ; go left this number of columns
+         MOVE.W   D0,D6             ; set new column in line
+         MOVE.W   D6,LINELEN(A6)    ; and new line length
+         MOVE.B   D1,-(A7)          ; save current keystroke
          MOVE.W   D2,D1
          ADDQ.W   #1,D2
          BCLR     #0,D2
-         SUBA.W   D2,A7
+         SUBA.W   D2,A7             ; make room on stack (evened up!)
          MOVE.L   A7,A1
          MOVE.W   D1,D0
          BRA.S    WRAP_SVE
-WRAP_SVL MOVE.B   (A3,D6.W),(A1)+
+WRAP_SVL MOVE.B   (A3,D6.W),(A1)+   ; save text to be wrapped on stack
          ADDQ.W   #1,D6
 WRAP_SVE DBF      D0,WRAP_SVL
-         MOVE.W   LINELEN(A6),D6
-         MOVEM.W  D1-D2,-(A7)
+         MOVE.W   LINELEN(A6),D6    ; new line length
+         MOVEM.W  D1-D2,-(A7)       ; save lengths (original + evened up)
          MOVE.W   D4,D1
          IF LT THEN
             MOVEQ    #0,D1
          ENDIF
-         QDOS     SD.TAB
-         QDOS     SD.CLRRT
-         BSR      NEWLINE
-         BSR      COPYLINE
+         QDOS     SD.TAB            ; set cursor to last whitespace on window
+         QDOS     SD.CLRRT          ; and clear the columns on the right of it
+         BSR      NEWLINE           ; insert newline
+         BSR      COPYLINE          ; copy line to buffer
          MOVE.W   D4,D1
          MOVE.W   D5,D2
-         QDOS     SD.POS
-         MOVE.W   (A7)+,D2
-         LEA      2(A7),A1
+         QDOS     SD.POS            ; set cursor position
+         MOVE.W   (A7)+,D2          ; length of wrapped text
+         LEA      2(A7),A1          ; point to text
          BRA.S    WRAP_RSE
-WRAP_RSL MOVE.B   (A1)+,D1
+WRAP_RSL MOVE.B   (A1)+,D1          ; and add every character to the new line
          BSR.S    ADDCHR
 WRAP_RSE DBF      D2,WRAP_RSL
-         ADDA.W   (A7)+,A7
-         MOVE.B   (A7)+,D1
-         CMPI.B   #' ',D1
-         BEQ      MAINLOOP
-NO_WRAP  BSR.S    ADDCHR
+         ADDA.W   (A7)+,A7          ; tidyup stack
+         MOVE.B   (A7)+,D1          ; original keystroke
+         CMPI.B   #' ',D1           ; was it a space?
+         BEQ      MAINLOOP          ; yes, ignore it
+NO_WRAP  BSR.S    ADDCHR            ; else, add to new line
          BRA      MAINLOOP
+
+; Add character to current line
 
          XDEF     ADDCHR
 
@@ -822,39 +835,39 @@ ADDCHR   MOVEM.L  D2/A1,-(A7)
          BGE.S    ADDC_ERR
          CMPI.W   #254,D6
          BGE.S    ADDC_ERR
-         LEA      (A3,D6.W),A1
-         SUB.W    D6,D2
-         BEQ.S    ST_CHAR
-         BGT.S    AC_MOVE
+         LEA      (A3,D6.W),A1      ; current position in buffer
+         SUB.W    D6,D2             ; how many characters after current?
+         BEQ.S    ST_CHAR           ; none, just store
+         BGT.S    AC_MOVE           ; move up
          NEG.W    D2
          ADD.W    D2,LINELEN(A6)
          SUBA.W   D2,A1
-AC_FILSP MOVE.B   #' ',(A1)+
+AC_FILSP MOVE.B   #' ',(A1)+        ; fill up with spaces
          SUBQ.W   #1,D2
          BNE      AC_FILSP
          BRA.S    ST_CHAR
-AC_MOVE  TST.B    OVERWMOD(A6)
-         BNE.S    OV_CHAR
-         ADDA.W   D2,A1
+AC_MOVE  TST.B    OVERWMOD(A6)      ; overwrite mode?
+         BNE.S    OV_CHAR           ; yes
+         ADDA.W   D2,A1             ; go to end of line
          MOVE.W   D2,D0
-ADDC_LP  MOVE.B   -(A1),1(A1)
+ADDC_LP  MOVE.B   -(A1),1(A1)       ; and move rest up
          SUBQ.W   #1,D0
          BNE      ADDC_LP
-ST_CHAR  ADDQ.W   #1,LINELEN(A6)
-OV_CHAR  MOVE.B   D1,(A1)
-         TST.W    D2
-         BEQ.S    ADDC_PR2
+ST_CHAR  ADDQ.W   #1,LINELEN(A6)    ; one more character
+OV_CHAR  MOVE.B   D1,(A1)           ; enter it
+         TST.W    D2                ; at end of line?
+         BEQ.S    ADDC_PR2          ; yes, skip
          TST.B    OVERWMOD(A6)
-         BNE.S    ADDC_PR2
-         BSR      DSP_BUF
+         BNE.S    ADDC_PR2          ; skip too when overwriting
+         BSR      DSP_BUF           ; else, redisplay buffer
          BRA.S    ADDC_END
-ADDC_PR2 MOVE.B   D1,-(A7)
+ADDC_PR2 MOVE.B   D1,-(A7)          ; save character
          MOVE.W   D4,D1
          MOVE.W   D5,D2
-         QDOS     SD.POS
+         QDOS     SD.POS            ; set current position
          MOVE.B   (A7)+,D1
-         QDOS     IO.SBYTE
-ADDC_END BSR      RIGHT
+         QDOS     IO.SBYTE          ; and display new character
+ADDC_END BSR      RIGHT             ; move cursor right
          MOVEM.L  (A7)+,D2/A1
          RTS
 ADDC_ERR BSR.S    LIN2LONG
@@ -1049,10 +1062,11 @@ SPL_TAS  TST.W    2(A7)
          CMP.W    WINLEN(A6),D1
          BGE.S    SPL_SCUP          ; ...unless we're already at the bottom
          MOVE.W   D1,D5             ; set new row position
-         MOVEQ    #10,D1            ; But if not, scroll remaining part down
+         MOVE.W   CH_YINC(A6),D1    ; But if not, scroll remaining part down
          QDOS     SD.SCRBT
          BRA.S    SPL_DLIN
-SPL_SCUP MOVEQ    #-10,D1           ; We're at the bottom so scroll up
+SPL_SCUP MOVE.W   CH_YINC(A6),D1    ; We're at the bottom so scroll up
+         NEG.W    D1
          QDOS     SD.SCROL
          MOVEQ    #0,D0
          SUB.W    D5,D7
@@ -1219,7 +1233,8 @@ JOIN_LN  CMP.W    MAXLINE(A6),D7
          MOVE.B   D2,(A5,D7.W)
          MOVE.L   (A7)+,A1
          BSR      DSP_LINE
-         MOVEQ    #-10,D1
+         MOVE.W   CH_YINC(A6),D1
+         NEG.W    D1
          QDOS     SD.SCRBT
          BSR.S    DSPBOTLN
 JOIN_END RTS
@@ -1248,7 +1263,8 @@ DELL_1   MOVEQ    #0,D1
          QDOS     SD.CLRLN
          BRA.S    UP
 DELL_2   QDOS     SD.PROW
-         MOVEQ    #-10,D1
+         MOVE.W   CH_YINC(A6),D1
+         NEG.W    D1
          TST.L    D0
          BNE.S    DELL_3
          QDOS     SD.SCRBT
@@ -1298,7 +1314,7 @@ SAUP     MOVE.B   ARROWCMD,D0       HOME on QPC2 w/ SMSQ/E keyboard
 SCROL_UP CMP.W    D5,D7
          BEQ.S    TOP_FILE
          BSR      ENT_LINE
-         MOVEQ    #10,D1
+         MOVE.W   CH_YINC(A6),D1
          QDOS     SD.SCROL
          MOVEM.W  D4-D6,-(A7)
          SUB.W    D5,D7
@@ -1329,7 +1345,8 @@ SCROL_DN MOVE.W   WINLEN(A6),D0
          CMP.W    MAXLINE(A6),D1
          BHI.S    END_FILE
          BSR      ENT_LINE
-         MOVEQ    #-10,D1
+         MOVE.W   CH_YINC(A6),D1
+         NEG.W    D1
          QDOS     SD.SCROL
          MOVE.W   D7,D1
          SUB.W    D5,D1

@@ -81,6 +81,7 @@ MAXLINE  DS.W     1        Highest line number
 LNTBLSIZ DS.W     1        Size of line table
 WINWID   DS.W     1        Window width in characters
 WINLEN   DS.W     1        Window height in lines
+CH_YINC  DS.W     1        Character height (pixels)
 LINELEN  DS.W     1        Length of line in line buffer
 LEFTMAR  DS.W     1        Left margin (from 0 upwards)
 RIGHTMAR DS.W     1        Right margin
